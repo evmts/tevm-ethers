@@ -1,0 +1,182 @@
+---
+title: Typed contracts
+description: Infer ethers contract methods, arguments, return values, and events from a const ABI.
+---
+
+# Typed contracts
+
+`@tevm/ethers` exports `Contract` and `Interface`. They are the **same runtime values** as
+`ethers.Contract` and `ethers.Interface` — only the types are narrowed — so adopting them is a
+one-line import change with no runtime cost and no code generation step.
+
+```diff
+- import { Contract, Interface } from 'ethers'
++ import { Contract, Interface } from '@tevm/ethers'
+```
+
+## The `as const` requirement
+
+Type inference comes from the ABI's literal type. Without `as const` (or an ABI imported from a
+`.ts` file that already has it), TypeScript widens `'function'` to `string` and you fall back to the
+untyped ethers behavior.
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: 'balance', type: 'uint256' }],
+	},
+	{
+		type: 'function',
+		name: 'transfer',
+		stateMutability: 'nonpayable',
+		inputs: [
+			{ name: 'to', type: 'address' },
+			{ name: 'amount', type: 'uint256' },
+		],
+		outputs: [{ name: '', type: 'bool' }],
+	},
+	{
+		type: 'event',
+		name: 'Transfer',
+		inputs: [
+			{ indexed: true, name: 'from', type: 'address' },
+			{ indexed: true, name: 'to', type: 'address' },
+			{ indexed: false, name: 'value', type: 'uint256' },
+		],
+	},
+] as const
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+const token = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
+
+// `balance` is `bigint`; `token.balnceOf` is a compile error
+const balance = await token.balanceOf('0x0000000000000000000000000000000000000002')
+```
+
+## Read vs write methods
+
+The type of a method's return value follows its state mutability:
+
+- `pure` / `view` → the decoded return value (`bigint`, `string`, `boolean`, ...). One output is
+  unwrapped; multiple outputs become an ethers `Result` intersected with the output tuple.
+- `nonpayable` / `payable` → a `ContractTransactionResponse`. Use `.staticCall()` to get the decoded
+  return value instead, and `.estimateGas()` / `.populateTransaction()` as usual.
+
+## A complete, runnable example
+
+This deploys the ERC20 that ships with `@tevm/contract`, funds an account with `deal`, transfers
+tokens with an ethers `Wallet`, and reads the emitted event back — entirely in memory.
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+import { ERC20 } from '@tevm/contract'
+import { PREFUNDED_ACCOUNTS, PREFUNDED_PRIVATE_KEYS } from '@tevm/utils'
+import { Wallet } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider({
+	miningConfig: { type: 'auto' },
+})
+
+const deployed = await provider.tevm.deploy({
+	...ERC20.deploy('Token', 'TKN'),
+	bytecode: ERC20.bytecode,
+	abi: ERC20.abi,
+	from: PREFUNDED_ACCOUNTS[0].address,
+	addToBlockchain: true,
+})
+
+const wallet = new Wallet(PREFUNDED_PRIVATE_KEYS[0], provider)
+const token = new Contract(deployed.createdAddress, ERC20.abi, wallet)
+
+console.log(await token.name()) // 'Token'
+console.log(await token.symbol()) // 'TKN'
+console.log(await token.decimals()) // 18n
+
+// Give the sender a balance without needing a mint function
+await provider.tevm.deal({
+	erc20: deployed.createdAddress,
+	account: PREFUNDED_ACCOUNTS[0].address,
+	amount: 1000n,
+})
+
+console.log(await token.balanceOf(PREFUNDED_ACCOUNTS[0].address)) // 1000n
+
+const tx = await token.transfer(`0x${'42'.repeat(20)}`, 100n)
+const receipt = await tx.wait()
+
+console.log(receipt?.status) // 1
+console.log(await token.balanceOf(`0x${'42'.repeat(20)}`)) // 100n
+
+const logs = await token.queryFilter('Transfer', 0, 'latest')
+console.log(logs.length) // 1
+console.log(logs[0].args.value) // 100n
+console.log(logs[0].args.to) // '0x4242424242424242424242424242424242424242'
+```
+
+`queryFilter` narrows `args` for every event name in the ABI. Unknown event names still work and
+fall back to `EventLog | Log`.
+
+## `Interface`
+
+`Interface` keeps the const ABI in its `fragments` property, which is useful when you encode or
+decode calldata by hand.
+
+```ts twoslash
+// @noErrors
+import { Interface } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: 'balance', type: 'uint256' }],
+	},
+] as const
+
+const iface = new Interface<typeof abi>(abi)
+
+const data = iface.encodeFunctionData('balanceOf', ['0x0000000000000000000000000000000000000001'])
+console.log(data.startsWith('0x70a08231')) // true
+```
+
+## Working with Tevm contract objects
+
+`createContract` from `@tevm/contract` builds an ABI from human-readable signatures, and its `.abi`
+is already `const`, so it plugs straight into the typed `Contract`.
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+import { createContract } from '@tevm/contract'
+
+const counter = createContract({
+	name: 'Counter',
+	humanReadableAbi: [
+		'function increment() public',
+		'function count() public view returns (uint256)',
+	],
+})
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+const contract = new Contract('0x0000000000000000000000000000000000000001', counter.abi, provider)
+```
+
+## Limitations
+
+- ethers v6 only. There is no v5 build.
+- Overloaded functions resolve to the ethers runtime behavior; disambiguate with the full signature
+  (`contract['transfer(address,uint256)']`) when you need it.
+- Structs (`tuple`) decode to an ethers `Result` intersected with the tuple type, so both index and
+  name access type-check.

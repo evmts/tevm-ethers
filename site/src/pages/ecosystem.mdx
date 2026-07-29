@@ -1,0 +1,62 @@
+---
+title: Relationship to Tevm
+description: How @tevm/ethers relates to Tevm core, the other split repos, and the wider ecosystem.
+---
+
+# Relationship to Tevm
+
+## What lives where
+
+`@tevm/ethers` is an **integration package**. It contains no EVM code of its own: it adapts the Tevm
+node to the ethers API and adds ABI-level types.
+
+| Layer                | Package(s)                                                        | Repo                                                            |
+| -------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| EVM + node           | `@tevm/node`, `@tevm/evm`, `@tevm/state`, `@tevm/blockchain`, `tevm` | [evmts/tevm-monorepo](https://github.com/evmts/tevm-monorepo)   |
+| Actions & JSON-RPC   | `@tevm/actions`, `@tevm/decorators`                               | evmts/tevm-monorepo                                              |
+| Contract & utils     | `@tevm/contract`, `@tevm/utils`, `@tevm/common`                   | evmts/tevm-monorepo                                              |
+| **ethers adapter**   | **`@tevm/ethers`**                                                | **[evmts/tevm-ethers](https://github.com/evmts/tevm-ethers)** (this repo) |
+
+Tevm's own client (`createMemoryClient` from `tevm`) is a **viem** client. `@tevm/ethers` is the
+equivalent for teams whose codebase is built on ethers.
+
+## Why this repo is split out
+
+The adapter's release cadence is driven by **ethers**, not by Tevm. A new ethers minor can change
+the provider internals this package extends, and that fix should ship immediately without waiting
+for a Tevm core release train — and without forcing every Tevm user to take a version bump they do
+not care about.
+
+Splitting it out means:
+
+- The package tracks ethers releases directly.
+- It depends on published `@tevm/*` versions like any other consumer, which keeps the public API
+  honest — if something is not exported from Tevm core, this package cannot use it either.
+- Its CI is small and fast: lint, typecheck, build, test.
+
+## How versions line up
+
+`@tevm/ethers` declares `ethers`, `tevm`, and `viem` as peer dependencies, so your application picks
+the versions. See [Getting started](/getting-started#supported-ranges) for the supported ranges. The
+notable constraint today is `viem <= 2.46.0`, because current Tevm packages reference chain
+definitions that later viem releases removed.
+
+## Related documentation
+
+| Site                                    | Covers                                                        |
+| --------------------------------------- | ------------------------------------------------------------- |
+| [tevm.sh](https://tevm.sh)               | Tevm overview, bundler, CLI, and the wider project.            |
+| [node.tevm.sh](https://node.tevm.sh)     | The Tevm node: actions, JSON-RPC, forking, state, mining.      |
+| [ethers.tevm.sh](https://ethers.tevm.sh) | This site — the ethers adapter.                                |
+| [docs.ethers.org/v6](https://docs.ethers.org/v6/) | The ethers API that `TevmProvider` implements.        |
+| [viem.sh](https://viem.sh)               | viem, used for Tevm's fork transports and its own client.      |
+
+## Choosing between viem and ethers with Tevm
+
+Both work against the same EVM, and they can share one node (see
+[Using TevmProvider](/guides/provider#sharing-one-evm)).
+
+- Already on **viem**? Use `createMemoryClient()` from `tevm` directly; you do not need this package.
+- Already on **ethers**? Use `TevmProvider` — your existing contracts, signers, and utilities keep
+  working unchanged.
+- **Migrating** from ethers to viem? Point both at the same Tevm node and migrate module by module.

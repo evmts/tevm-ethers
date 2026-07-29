@@ -1,0 +1,139 @@
+---
+title: TevmProvider
+description: API reference for the TevmProvider class.
+---
+
+# `TevmProvider`
+
+```ts
+import { TevmProvider } from '@tevm/ethers'
+```
+
+An [ethers `JsonRpcApiProvider`](https://docs.ethers.org/v6/api/providers/jsonrpc/#JsonRpcApiProvider)
+whose JSON-RPC backend is an in-process Tevm node.
+
+```ts
+class TevmProvider extends JsonRpcApiProvider
+```
+
+Every method of `JsonRpcApiProvider` and `AbstractProvider` is inherited unchanged
+(`getBalance`, `getBlock`, `getBlockNumber`, `getTransactionReceipt`, `call`, `estimateGas`,
+`broadcastTransaction`, `send`, `on`, ...). Only the additions are documented here.
+
+## `TevmProvider.createMemoryProvider(options?)`
+
+Creates a provider backed by a brand new in-memory Tevm node. The node is created with
+`createTevmNode(options)` and extended with `tevmActions()` and `tevmSend()`.
+
+**Parameters**
+
+| Name      | Type                                     | Description                                                                 |
+| --------- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| `options` | `TevmNodeOptions` (optional)             | Fork config, mining config, chain `common`, logging level, state persistence. |
+
+**Returns** `Promise<TevmProvider>`
+
+**Throws** `Error` — if `options.fork.transport` is set but the fork RPC cannot be reached while the
+node initializes.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({ miningConfig: { type: 'auto' } })
+
+console.log(await provider.getBlockNumber()) // 0
+```
+
+Forking:
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+
+const provider = await TevmProvider.createMemoryProvider({
+	fork: { transport: http('https://mainnet.optimism.io')({}) },
+})
+
+console.log(await provider.getBalance('0x0000000000000000000000000000000000000001'))
+```
+
+## `new TevmProvider(client)`
+
+Wraps an existing Tevm node in an ethers provider.
+
+**Parameters**
+
+| Name     | Type                                                                 | Description                                                                       |
+| -------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `client` | `TevmSendApi & TevmActionsApi` — or an object exposing one as `.tevm` | A node extended with `tevmActions()` and `tevmSend()`.                             |
+
+**Throws** `TypeError` — if `client` neither implements `send`/`sendBulk` nor exposes a node on a
+`tevm` property.
+
+The provider is constructed with `staticNetwork: true`, `batchMaxCount: 1`, `batchStallTime: 0`, and
+`cacheTimeout: -1`: the backend is in-process, so batching buys nothing and caching would hide state
+mutated through `provider.tevm`.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { tevmActions, tevmSend } from '@tevm/decorators'
+import { createTevmNode } from '@tevm/node'
+
+const node = createTevmNode().extend(tevmActions()).extend(tevmSend())
+
+const provider = new TevmProvider(node)
+
+console.log(await provider.getBlockNumber()) // 0
+```
+
+## `provider.tevm`
+
+**Type** `TevmSendApi & TevmActionsApi`
+
+The underlying node's action and JSON-RPC API: `call`, `contract`, `deploy`, `deal`, `mine`,
+`getAccount`, `setAccount`, `dumpState`, `loadState`, `send`, `sendBulk`.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+await provider.tevm.setAccount({ address: `0x${'69'.repeat(20)}`, balance: 420n })
+
+const account = await provider.tevm.getAccount({ address: `0x${'69'.repeat(20)}` })
+console.log(account.balance) // 420n
+```
+
+See [Tevm actions & JSON-RPC](/guides/tevm-actions) for the full list, and the
+[Tevm Node docs](https://node.tevm.sh) for each action's parameters.
+
+## `provider._send(payload)`
+
+**Type** `JsonRpcApiProvider['_send']`
+
+Ethers' transport hook. Forwards a single payload to `provider.tevm.send` and a batch to
+`provider.tevm.sendBulk`. Called by ethers internals — application code should use
+`provider.send(method, params)`.
+
+**Throws** `Error` — on transport-level failure. Method-level failures come back as JSON-RPC error
+objects rather than thrown exceptions.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+console.log(await provider.send('eth_chainId', [])) // '0x384'
+```
+
+## Supported JSON-RPC methods
+
+- Standard `eth_*` methods implemented by the Tevm node.
+- `tevm_call`, `tevm_getAccount`, `tevm_setAccount`, `tevm_mine`, `tevm_dumpState`,
+  `tevm_loadState`.
+- `anvil_*` and `debug_*` methods supported by the node.

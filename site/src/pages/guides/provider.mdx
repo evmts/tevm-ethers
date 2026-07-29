@@ -1,0 +1,150 @@
+---
+title: Using TevmProvider
+description: Create, configure, and use an ethers provider backed by an in-process Tevm EVM.
+---
+
+# Using TevmProvider
+
+`TevmProvider` extends the ethers [`JsonRpcApiProvider`](https://docs.ethers.org/v6/api/providers/jsonrpc/#JsonRpcApiProvider).
+Everything you know about ethers providers applies; the only difference is that the JSON-RPC
+requests are answered by an EVM running in the same process.
+
+## Creating a provider
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({
+	miningConfig: { type: 'auto' },
+})
+
+console.log(await provider.getBlockNumber()) // 0
+```
+
+`createMemoryProvider` accepts the full [`TevmNodeOptions`](https://node.tevm.sh) object:
+
+| Option         | Purpose                                                                        |
+| -------------- | ------------------------------------------------------------------------------ |
+| `fork`         | `{ transport, blockTag }` — fork state lazily from another chain.                |
+| `miningConfig` | `{ type: 'auto' }` mines a block per transaction; `{ type: 'manual' }` is the default. |
+| `common`       | The chain definition (defaults to `tevmDefault`, chain id `900`).                |
+| `loggingLevel` | `'trace' | 'debug' | 'info' | 'warn' | 'error'`.                                  |
+
+## Mining
+
+By default Tevm mines manually: a transaction sits in the mempool until you mine. `tx.wait()` will
+hang forever if you forget.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { PREFUNDED_PRIVATE_KEYS } from '@tevm/utils'
+import { Wallet, parseEther } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider({})
+const wallet = new Wallet(PREFUNDED_PRIVATE_KEYS[0], provider)
+
+const tx = await wallet.sendTransaction({
+	to: `0x${'42'.repeat(20)}`,
+	value: parseEther('1'),
+})
+
+// Nothing is mined yet — mine explicitly, then await the receipt.
+await provider.tevm.mine({ blockCount: 1 })
+
+const receipt = await tx.wait()
+console.log(receipt?.status) // 1
+console.log(await provider.getBlockNumber()) // 1
+```
+
+Pass `miningConfig: { type: 'auto' }` if you would rather have a block per transaction, which is the
+closest analogue to `anvil` in automine mode.
+
+## Signers and wallets
+
+Tevm prefunds a set of well-known accounts with 1000 ETH each. Use them with an ordinary
+`ethers.Wallet`:
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { PREFUNDED_ACCOUNTS, PREFUNDED_PRIVATE_KEYS } from '@tevm/utils'
+import { Wallet, formatEther } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider({ miningConfig: { type: 'auto' } })
+
+const wallet = new Wallet(PREFUNDED_PRIVATE_KEYS[0], provider)
+
+console.log(wallet.address === PREFUNDED_ACCOUNTS[0].address) // true
+console.log(formatEther(await provider.getBalance(wallet.address))) // '1000.0'
+```
+
+If you want an arbitrary address to be funded, give it a balance directly instead of transferring:
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { formatEther, parseEther } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider({ miningConfig: { type: 'auto' } })
+const address = `0x${'42'.repeat(20)}`
+
+await provider.tevm.setAccount({ address, balance: parseEther('100') })
+
+console.log(formatEther(await provider.getBalance(address))) // '100.0'
+```
+
+## Raw JSON-RPC
+
+`provider.send` accepts the standard `eth_*` methods and the Tevm `tevm_*` methods:
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { toHex } from '@tevm/utils'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+console.log(await provider.send('eth_chainId', [])) // '0x384'
+
+await provider.send('tevm_setAccount', [
+	{ address: `0x${'69'.repeat(20)}`, nonce: toHex(1n), balance: toHex(420n) },
+])
+
+const account = await provider.send('tevm_getAccount', [{ address: `0x${'69'.repeat(20)}` }])
+console.log(account.balance) // '0x1a4'
+```
+
+## Sharing one EVM
+
+Batching and response caching are disabled on `TevmProvider` (`batchMaxCount: 1`,
+`cacheTimeout: -1`) precisely because the node is in-process: requests are cheap, and caching would
+hide state you mutate through `provider.tevm`. That also makes it safe to point several providers at
+the same node.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { tevmActions, tevmSend } from '@tevm/decorators'
+import { createTevmNode } from '@tevm/node'
+import { parseEther } from 'ethers'
+
+const node = createTevmNode({ miningConfig: { type: 'auto' } })
+	.extend(tevmActions())
+	.extend(tevmSend())
+
+const alice = new TevmProvider(node)
+const bob = new TevmProvider(node)
+
+await alice.tevm.setAccount({ address: `0x${'42'.repeat(20)}`, balance: parseEther('1') })
+
+// Both providers see the same state.
+console.log(await bob.getBalance(`0x${'42'.repeat(20)}`)) // 1000000000000000000n
+```
+
+## Next
+
+- [Forking a network](/guides/forking)
+- [Tevm actions & JSON-RPC](/guides/tevm-actions)
+- [`TevmProvider` API reference](/api/tevm-provider)

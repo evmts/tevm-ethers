@@ -1,0 +1,174 @@
+---
+title: Testing with Vitest
+description: Write fast, hermetic ethers tests against an in-memory EVM.
+---
+
+# Testing with Vitest
+
+A `TevmProvider` boots in milliseconds and needs no binary, no port, and no `beforeAll` process
+management. That makes it a good default backend for tests of any code that takes an ethers
+provider or signer.
+
+## Setup
+
+```bash
+pnpm add -D vitest
+pnpm add @tevm/ethers ethers tevm viem@2.46.0
+```
+
+```ts twoslash
+// @noErrors
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+	test: {
+		environment: 'node',
+		testTimeout: 20_000,
+	},
+})
+```
+
+Forked tests hit the network on first read, so a timeout above the default is worth setting.
+
+## A fresh EVM per test
+
+Create the provider in `beforeEach` so no test can observe another test's state.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { PREFUNDED_PRIVATE_KEYS } from '@tevm/utils'
+import { Wallet, formatEther, parseEther } from 'ethers'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+describe('payments', () => {
+	let provider: TevmProvider
+
+	beforeEach(async () => {
+		provider = await TevmProvider.createMemoryProvider({
+			miningConfig: { type: 'auto' },
+		})
+	})
+
+	it('transfers ether', async () => {
+		const wallet = new Wallet(PREFUNDED_PRIVATE_KEYS[0], provider)
+		const recipient = `0x${'42'.repeat(20)}`
+
+		const tx = await wallet.sendTransaction({ to: recipient, value: parseEther('1') })
+		const receipt = await tx.wait()
+
+		expect(receipt?.status).toBe(1)
+		expect(formatEther(await provider.getBalance(recipient))).toBe('1.0')
+	})
+
+	it('starts from a clean slate', async () => {
+		expect(await provider.getBalance(`0x${'42'.repeat(20)}`)).toBe(0n)
+	})
+})
+```
+
+## Testing a contract
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+import { ERC20 } from '@tevm/contract'
+import { PREFUNDED_ACCOUNTS, PREFUNDED_PRIVATE_KEYS } from '@tevm/utils'
+import { Wallet } from 'ethers'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+describe('ERC20', () => {
+	let provider: TevmProvider
+	let token: Contract
+
+	beforeEach(async () => {
+		provider = await TevmProvider.createMemoryProvider({
+			miningConfig: { type: 'auto' },
+		})
+
+		const deployed = await provider.tevm.deploy({
+			...ERC20.deploy('Token', 'TKN'),
+			bytecode: ERC20.bytecode,
+			abi: ERC20.abi,
+			from: PREFUNDED_ACCOUNTS[0].address,
+			addToBlockchain: true,
+		})
+
+		await provider.tevm.deal({
+			erc20: deployed.createdAddress,
+			account: PREFUNDED_ACCOUNTS[0].address,
+			amount: 1000n,
+		})
+
+		token = new Contract(deployed.createdAddress, ERC20.abi, new Wallet(PREFUNDED_PRIVATE_KEYS[0], provider))
+	})
+
+	it('exposes metadata', async () => {
+		expect(await token.name()).toBe('Token')
+		expect(await token.symbol()).toBe('TKN')
+		expect(await token.decimals()).toBe(18n)
+	})
+
+	it('emits Transfer on transfer', async () => {
+		const tx = await token.transfer(`0x${'42'.repeat(20)}`, 100n)
+		await tx.wait()
+
+		expect(await token.balanceOf(`0x${'42'.repeat(20)}`)).toBe(100n)
+
+		const logs = await token.queryFilter('Transfer', 0, 'latest')
+		expect(logs).toHaveLength(1)
+		expect(logs[0].args.value).toBe(100n)
+	})
+})
+```
+
+## Forked tests without repeated RPC cost
+
+Fork once, dump the state, and reload it in each test. After the first run nothing touches the
+network.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
+describe('forked mainnet', () => {
+	let snapshot: Awaited<ReturnType<TevmProvider['tevm']['dumpState']>>
+	let provider: TevmProvider
+
+	beforeAll(async () => {
+		const source = await TevmProvider.createMemoryProvider({
+			fork: {
+				transport: http('https://mainnet.optimism.io')({}),
+				blockTag: 154_847_000n,
+			},
+		})
+
+		// Touch the state the tests need so it is captured in the dump.
+		await source.getBalance('0x0000000000000000000000000000000000000001')
+
+		snapshot = await source.tevm.dumpState()
+	})
+
+	beforeEach(async () => {
+		provider = await TevmProvider.createMemoryProvider({ miningConfig: { type: 'auto' } })
+		await provider.tevm.loadState({ state: snapshot.state })
+	})
+
+	it('sees forked balances', async () => {
+		expect(typeof (await provider.getBalance('0x0000000000000000000000000000000000000001'))).toBe('bigint')
+	})
+})
+```
+
+## Tips
+
+- **Pin the fork block.** An unpinned fork makes tests non-deterministic.
+- **Prefer `miningConfig: { type: 'auto' }`** in tests unless you are specifically testing mempool
+  behavior; otherwise `tx.wait()` never resolves until you call `provider.tevm.mine()`.
+- **Use `deal` instead of impersonating a whale** when you only need a balance — it is faster and
+  has no upstream dependency.
+- **Don't share a provider across test files.** Each file gets its own process-level module state in
+  Vitest, but sharing within a file leaks state between tests.

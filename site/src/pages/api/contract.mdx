@@ -1,0 +1,135 @@
+---
+title: Contract & Interface
+description: API reference for the typed Contract and Interface exports.
+---
+
+# `Contract` & `Interface`
+
+```ts
+import { Contract, Interface } from '@tevm/ethers'
+```
+
+Both are the **same runtime values** as their ethers counterparts, re-exported with narrowed
+constructor types. There is no wrapper, no proxy, and no runtime overhead.
+
+## `Contract`
+
+```ts
+const Contract: TypesafeEthersContractConstructor
+```
+
+**Constructor overloads**
+
+```ts
+new Contract<TAbi extends Abi>(
+	target: string | Addressable,
+	abi: { fragments: TAbi } | TAbi,
+	runner?: null | ContractRunner,
+	_deployTx?: null | TransactionResponse,
+): TypesafeEthersContract<TAbi> & EthersContract
+
+new Contract(
+	target: string | Addressable,
+	abi: EthersInterface | InterfaceAbi,
+	runner?: null | ContractRunner,
+	_deployTx?: null | TransactionResponse,
+): EthersContract
+```
+
+The first overload applies when the ABI is a `const` array (or a typed `Interface`) and returns a
+[`TypesafeEthersContract`](/api/types#typesafeetherscontract). The second is the untyped ethers
+fallback for runtime ABIs.
+
+**Throws** `Error` — if the address or ABI is invalid (thrown by ethers).
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: 'balance', type: 'uint256' }],
+	},
+] as const
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+const token = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
+
+// `balance` is inferred as bigint; a typo in the method name is a compile error
+const balance = await token.balanceOf('0x0000000000000000000000000000000000000002')
+console.log(balance) // 0n
+```
+
+Pass a signer as the `runner` to send transactions:
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+import { ERC20 } from '@tevm/contract'
+import { PREFUNDED_ACCOUNTS, PREFUNDED_PRIVATE_KEYS } from '@tevm/utils'
+import { Wallet } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider({ miningConfig: { type: 'auto' } })
+
+const deployed = await provider.tevm.deploy({
+	...ERC20.deploy('Token', 'TKN'),
+	bytecode: ERC20.bytecode,
+	abi: ERC20.abi,
+	from: PREFUNDED_ACCOUNTS[0].address,
+	addToBlockchain: true,
+})
+
+const token = new Contract(
+	deployed.createdAddress,
+	ERC20.abi,
+	new Wallet(PREFUNDED_PRIVATE_KEYS[0], provider),
+)
+
+console.log(await token.name()) // 'Token'
+```
+
+## `Interface`
+
+```ts
+const Interface: TypesafeEthersInterfaceConstructor
+```
+
+**Constructor**
+
+```ts
+new Interface<TAbi extends Abi>(abi: InterfaceAbi): Omit<EthersInterface, 'fragments'> & { fragments: TAbi }
+```
+
+Identical to `ethers.Interface` except that `fragments` keeps the const ABI's type.
+
+**Throws** `Error` — if the ABI is malformed (thrown by ethers).
+
+```ts twoslash
+// @noErrors
+import { Interface } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: 'balance', type: 'uint256' }],
+	},
+] as const
+
+const iface = new Interface<typeof abi>(abi)
+
+const data = iface.encodeFunctionData('balanceOf', ['0x0000000000000000000000000000000000000001'])
+console.log(data.startsWith('0x70a08231')) // true
+```
+
+## See also
+
+- [Typed contracts guide](/guides/typed-contracts)
+- [Types reference](/api/types)

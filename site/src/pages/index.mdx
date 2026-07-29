@@ -1,0 +1,106 @@
+---
+title: '@tevm/ethers — ethers.js v6 integration for Tevm'
+description: An in-memory TevmProvider for ethers.js plus ABI-typed contracts without code generation.
+---
+
+import { InstallCommand } from '../components/InstallCommand'
+import { ProviderComparison } from '../components/ProviderComparison'
+import { TypedContractDemo } from '../components/TypedContractDemo'
+import { TevmSites } from '../components/TevmSites'
+
+<div className="tevm-hero">
+	<span className="tevm-hero-eyebrow">@tevm/ethers</span>
+	<h1>
+		Ethers.js, powered by a <span className="tevm-hero-accent">local EVM</span>
+	</h1>
+	<p className="tevm-hero-sub">
+		`@tevm/ethers` plugs an in-memory Tevm node straight into ethers.js v6. Swap your
+		`JsonRpcProvider` for a `TevmProvider` and every call executes locally — no network, no
+		fork URL, no rate limits — with contracts that infer their types from the ABI.
+	</p>
+	<div className="tevm-hero-actions">
+		<InstallCommand />
+		<a className="tevm-button" href="/playground">
+			Try the playground →
+		</a>
+	</div>
+</div>
+
+## One provider, zero network
+
+```ts
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({
+	miningConfig: { type: 'auto' },
+})
+
+const chainId = await provider.send('eth_chainId', [])
+const blockNumber = await provider.getBlockNumber()
+
+console.log({ chainId, blockNumber })
+```
+
+<ProviderComparison />
+
+## Contracts that type themselves
+
+`Contract` infers every method, argument, and return type from a const ABI — no code
+generation step, no `any` leaking through.
+
+```ts
+import { Contract } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: 'balance', type: 'uint256' }],
+	},
+] as const
+
+const token = new Contract('0x0000000000000000000000000000000000000000', abi, provider)
+const balance = await token.balanceOf('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045')
+//    ^? bigint — inferred from the ABI
+```
+
+<TypedContractDemo />
+
+## Why it exists
+
+<div className="tevm-features">
+	<div className="tevm-feature">
+		<h3>In-memory execution</h3>
+		<p>
+			`TevmProvider` runs every JSON-RPC method against a local Tevm node, so tests and scripts
+			never touch the network.
+		</p>
+	</div>
+	<div className="tevm-feature">
+		<h3>Real ethers</h3>
+		<p>
+			It extends ethers' own `JsonRpcApiProvider` — every provider API, signer, and utility you
+			already know keeps working.
+		</p>
+	</div>
+	<div className="tevm-feature">
+		<h3>ABI-typed contracts</h3>
+		<p>
+			`Contract` and `Interface` infer methods and events from a const ABI at the type level —
+			typesafe calls with zero codegen.
+		</p>
+	</div>
+	<div className="tevm-feature">
+		<h3>Tevm actions built in</h3>
+		<p>
+			`provider.tevm` exposes the full Tevm action API — mine blocks, set balances, impersonate
+			accounts — from the same object.
+		</p>
+	</div>
+</div>
+
+## The Tevm docs family
+
+<TevmSites />

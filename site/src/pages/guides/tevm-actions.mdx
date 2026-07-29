@@ -1,0 +1,140 @@
+---
+title: Tevm actions & JSON-RPC
+description: Use the Tevm action API and tevm_* JSON-RPC methods from an ethers provider.
+---
+
+# Tevm actions & JSON-RPC
+
+An ethers provider can only do what a remote node exposes. `TevmProvider` also gives you direct
+access to the EVM behind it through `provider.tevm`, and through the `tevm_*` JSON-RPC methods on
+`provider.send`.
+
+## `provider.tevm`
+
+`provider.tevm` is the Tevm node extended with `tevmActions()` and `tevmSend()`:
+
+| Action        | What it does                                                                 |
+| ------------- | ---------------------------------------------------------------------------- |
+| `call`        | Execute a message call with fine-grained control over state and tracing.      |
+| `contract`    | Execute a call encoded from an ABI and decode the result.                     |
+| `deploy`      | Deploy bytecode, optionally adding the tx to a block.                         |
+| `deal`        | Give an account ETH or an ERC20 balance by writing storage.                   |
+| `mine`        | Mine one or more blocks.                                                      |
+| `getAccount`  | Read balance, nonce, code, and storage root of an account.                    |
+| `setAccount`  | Overwrite balance, nonce, and deployed bytecode of an account.                |
+| `dumpState`   | Serialize the whole EVM state.                                                |
+| `loadState`   | Restore a previously dumped state.                                            |
+| `send` / `sendBulk` | Raw JSON-RPC against the node.                                          |
+
+### Reading and writing accounts
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+await provider.tevm.setAccount({
+	address: `0x${'69'.repeat(20)}`,
+	balance: 420n,
+})
+
+const account = await provider.tevm.getAccount({ address: `0x${'69'.repeat(20)}` })
+
+console.log(account.balance) // 420n
+console.log(account.isContract) // false
+```
+
+### Executing a contract call without deploying
+
+`setAccount` can install bytecode at any address, so you can execute a contract that was never
+deployed by a transaction.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { createContract } from '@tevm/contract'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+const addContract = createContract({
+	name: 'AddContract',
+	humanReadableAbi: ['function add(uint256 a, uint256 b) public pure returns (uint256)'],
+	address: `0x${'42'.repeat(20)}`,
+	deployedBytecode:
+		'0x608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220a8f4b7187c62760aefc097c1827799c61a6df322acc9d7575862a525f9aa59a364736f6c63430008170033',
+})
+
+await provider.tevm.setAccount({
+	address: addContract.address,
+	deployedBytecode: addContract.deployedBytecode,
+})
+
+const result = await provider.tevm.contract(addContract.read.add(390n, 30n))
+
+console.log(result.data) // 420n
+console.log(result.executionGasUsed) // gas used by the call
+```
+
+### Mining
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+await provider.tevm.mine({ blockCount: 3 })
+
+console.log(await provider.getBlockNumber()) // 3
+```
+
+## `tevm_*` JSON-RPC methods
+
+Everything above is also reachable over JSON-RPC, which matters when the provider is the only object
+you can pass around (for example, inside a library that accepts an EIP-1193 provider).
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { toHex } from '@tevm/utils'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+await provider.send('tevm_setAccount', [
+	{
+		address: `0x${'69'.repeat(20)}`,
+		nonce: toHex(1n),
+		balance: toHex(420n),
+	},
+])
+
+const account = await provider.send('tevm_getAccount', [{ address: `0x${'69'.repeat(20)}` }])
+
+console.log(account.balance) // '0x1a4'
+console.log(account.nonce) // '0x1'
+```
+
+Available methods: `tevm_call`, `tevm_getAccount`, `tevm_setAccount`, `tevm_mine`, `tevm_dumpState`,
+`tevm_loadState`. Standard `eth_*` and `anvil_*`/`debug_*` methods supported by the node work too.
+
+## Persisting and restoring state
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+
+const source = await TevmProvider.createMemoryProvider({})
+
+await source.tevm.setAccount({ address: `0x${'42'.repeat(20)}`, balance: 100n })
+
+const dumped = await source.tevm.dumpState()
+
+const restored = await TevmProvider.createMemoryProvider({})
+await restored.tevm.loadState({ state: dumped.state })
+
+console.log(await restored.getBalance(`0x${'42'.repeat(20)}`)) // 100n
+```
+
+Because the dump is plain JSON you can write it to disk and reuse it as a test fixture — see
+[Forking a network](/guides/forking#snapshotting-a-fork).

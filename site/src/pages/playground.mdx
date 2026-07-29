@@ -1,0 +1,26 @@
+---
+title: 'Playground — @tevm/ethers'
+description: Interactive demos for the Tevm ethers.js integration.
+---
+
+import { ProviderComparison } from '../components/ProviderComparison'
+import { TypedContractDemo } from '../components/TypedContractDemo'
+
+# Playground
+
+Interactive walkthroughs of what `@tevm/ethers` gives you. Everything on this page runs in
+your browser — no wallet, no RPC key.
+
+## Local vs remote execution
+
+Every ethers call normally crosses the network to reach an EVM. `TevmProvider` executes the
+same call in-process against a local Tevm node. Run the comparison:
+
+<ProviderComparison />
+
+## ABI-level typing
+
+Pick a method to see how `Contract` infers its signature and return type from the ABI at
+compile time:
+
+<TypedContractDemo />

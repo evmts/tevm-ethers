@@ -1,0 +1,154 @@
+---
+title: Types
+description: Reference for the types exported by @tevm/ethers.
+---
+
+# Types
+
+```ts
+import type {
+	BaseContractMethod,
+	ContractMethodArgs,
+	TypesafeEthersContract,
+} from '@tevm/ethers'
+```
+
+## `TypesafeEthersContract<TAbi>`
+
+An ethers `BaseContract` with methods and events derived from a `const` ABI.
+
+- **`pure` / `view` functions** resolve to the decoded return value. A single output is unwrapped;
+  multiple outputs become an ethers `Result` intersected with the output tuple.
+- **`nonpayable` / `payable` functions** resolve to a `ContractTransactionResponse`; use
+  `.staticCall()` for the decoded return value.
+- **`queryFilter`** narrows the log `args` for any event name present in the ABI, and falls back to
+  `EventLog | Log` for unknown names.
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider, type TypesafeEthersContract } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'transfer',
+		stateMutability: 'nonpayable',
+		inputs: [
+			{ name: 'to', type: 'address' },
+			{ name: 'amount', type: 'uint256' },
+		],
+		outputs: [{ name: '', type: 'bool' }],
+	},
+	{
+		type: 'event',
+		name: 'Transfer',
+		inputs: [
+			{ indexed: true, name: 'from', type: 'address' },
+			{ indexed: true, name: 'to', type: 'address' },
+			{ indexed: false, name: 'value', type: 'uint256' },
+		],
+	},
+] as const
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+const token: TypesafeEthersContract<typeof abi> = new Contract(
+	'0x0000000000000000000000000000000000000001',
+	abi,
+	provider,
+)
+
+// `ok` is boolean — the decoded return value of a write method
+const ok = await token.transfer.staticCall('0x0000000000000000000000000000000000000002', 1n)
+
+// `logs[n].args` is typed from the Transfer event
+const logs = await token.queryFilter('Transfer', 0, 'latest')
+```
+
+### Solidity → TypeScript mapping
+
+| Solidity                       | TypeScript                                             |
+| ------------------------------ | ------------------------------------------------------ |
+| `uintN` / `intN`               | `bigint`                                               |
+| `bool`                         | `boolean`                                              |
+| `address`, `string`, `bytesN`  | `string`                                               |
+| `T[]` / `T[N]`                 | `Array<mapped T>`                                      |
+| `tuple`                        | ethers `Result` intersected with the mapped components |
+| no outputs                     | `void`                                                 |
+
+## `BaseContractMethod<TArguments, TReturnType, TExtendedReturnType>`
+
+The shape of a single typed contract method: callable, plus the ethers method helpers.
+
+```ts
+type BaseContractMethod<
+	TArguments extends ReadonlyArray<any> = ReadonlyArray<any>,
+	TReturnType = any,
+	TExtendedReturnType extends TReturnType | ContractTransactionResponse = ContractTransactionResponse,
+> = {
+	(...args: ContractMethodArgs<TArguments>): Promise<TReturnType | TExtendedReturnType>
+	name: string
+	_contract: BaseContract
+	_key: string
+	getFragment: (...args: ContractMethodArgs<TArguments>) => FunctionFragment
+	estimateGas: (...args: ContractMethodArgs<TArguments>) => Promise<bigint>
+	populateTransaction: (...args: ContractMethodArgs<TArguments>) => Promise<ContractTransaction>
+	send: (...args: ContractMethodArgs<TArguments>) => Promise<ContractTransactionResponse>
+	staticCall: (...args: ContractMethodArgs<TArguments>) => Promise<TReturnType>
+	staticCallResult: (...args: ContractMethodArgs<TArguments>) => Promise<Result>
+	readonly fragment: FunctionFragment
+}
+```
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider, type BaseContractMethod } from '@tevm/ethers'
+
+const abi = [
+	{
+		type: 'function',
+		name: 'transfer',
+		stateMutability: 'nonpayable',
+		inputs: [
+			{ name: 'to', type: 'address' },
+			{ name: 'amount', type: 'uint256' },
+		],
+		outputs: [{ name: '', type: 'bool' }],
+	},
+] as const
+
+const provider = await TevmProvider.createMemoryProvider({})
+const token = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
+
+const transfer: BaseContractMethod<[string, bigint], boolean> = token.transfer
+console.log(transfer.name) // 'transfer'
+```
+
+## `ContractMethodArgs<A>`
+
+```ts
+type ContractMethodArgs<A extends ReadonlyArray<any>> = [...A, Overrides] | A
+```
+
+The argument tuple a contract method accepts: the ABI-derived arguments, optionally followed by an
+ethers `Overrides` object (`gasLimit`, `value`, `from`, `nonce`, ...).
+
+```ts twoslash
+// @noErrors
+import type { ContractMethodArgs } from '@tevm/ethers'
+
+type TransferArgs = ContractMethodArgs<[string, bigint]>
+
+const withoutOverrides: TransferArgs = ['0x0000000000000000000000000000000000000001', 1n]
+const withOverrides: TransferArgs = [
+	'0x0000000000000000000000000000000000000001',
+	1n,
+	{ gasLimit: 100_000n },
+]
+```
+
+## `TypesafeEthersContractConstructor` / `TypesafeEthersInterfaceConstructor`
+
+The constructor types behind the [`Contract` and `Interface`](/api/contract) exports. You rarely
+reference these directly; they exist so the exported values can carry both the typed and the
+untyped overloads.

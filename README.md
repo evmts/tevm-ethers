@@ -66,7 +66,17 @@ pnpm build
 pnpm test
 ```
 
-API documentation is hosted at [ethers.tevm.sh](https://ethers.tevm.sh). General Tevm documentation remains at [tevm.sh](https://tevm.sh).
+### Documentation site
+
+The docs site lives in [`site/`](./site) and is built with [vocs](https://vocs.dev) 2.
+
+```sh
+pnpm docs:dev     # local dev server
+pnpm docs:build   # static build to site/dist/public
+pnpm docs:preview # preview the built site
+```
+
+It is published to [ethers.tevm.sh](https://ethers.tevm.sh). General Tevm documentation remains at [tevm.sh](https://tevm.sh), and the Tevm node docs at [node.tevm.sh](https://node.tevm.sh).
 
 ## License
 

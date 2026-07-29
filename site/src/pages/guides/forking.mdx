@@ -1,0 +1,163 @@
+---
+title: Forking a network
+description: Fork mainnet or any EVM chain into an in-memory Tevm node and drive it with ethers.
+---
+
+# Forking a network
+
+A forked provider lazily fetches state (accounts, storage slots, bytecode, blocks) from an upstream
+RPC the first time you touch it, and keeps every write local. It is the fastest way to run app code
+or tests against real chain state.
+
+## Basic fork
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+
+const provider = await TevmProvider.createMemoryProvider({
+	fork: { transport: http('https://mainnet.optimism.io')({}) },
+})
+
+const blockNumber = await provider.getBlockNumber()
+console.log(blockNumber) // the block height the fork was pinned to
+```
+
+`fork.transport` is a **viem transport instance**, not a URL — note the `({})` that instantiates the
+transport returned by `http(...)`.
+
+## Pinning to a block
+
+Always pin a block in tests. An unpinned fork follows the chain tip, so results change from run to
+run and the upstream cache is useless.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+
+const provider = await TevmProvider.createMemoryProvider({
+	fork: {
+		transport: http('https://mainnet.optimism.io')({}),
+		blockTag: 154_847_000n,
+	},
+})
+
+console.log(await provider.getBlockNumber()) // 154847000
+```
+
+## Reading forked contracts with ethers
+
+Once forked, any contract on the upstream chain is readable through an ordinary ethers `Contract`.
+Use the typed [`Contract`](/guides/typed-contracts) export to get inferred types for free.
+
+```ts twoslash
+// @noErrors
+import { Contract, TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+
+const erc20Abi = [
+	{
+		type: 'function',
+		name: 'name',
+		stateMutability: 'view',
+		inputs: [],
+		outputs: [{ name: '', type: 'string' }],
+	},
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: '', type: 'uint256' }],
+	},
+] as const
+
+const provider = await TevmProvider.createMemoryProvider({
+	fork: {
+		transport: http('https://mainnet.optimism.io')({}),
+		blockTag: 154_847_000n,
+	},
+})
+
+// USDC on OP Mainnet
+const usdc = new Contract('0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', erc20Abi, provider)
+
+console.log(await usdc.name()) // 'USD Coin'
+
+const balance = await usdc.balanceOf('0x0000000000000000000000000000000000000001')
+console.log(typeof balance) // 'bigint'
+```
+
+## Overwriting forked state
+
+Local writes never touch the upstream chain. This is what makes forks useful for "what if"
+scenarios: give yourself tokens, replace bytecode, or impersonate a whale.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+import { parseEther } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider({
+	fork: {
+		transport: http('https://mainnet.optimism.io')({}),
+		blockTag: 154_847_000n,
+	},
+	miningConfig: { type: 'auto' },
+})
+
+const whale = '0x0000000000000000000000000000000000000001'
+
+// Give the address 100 ETH locally.
+await provider.tevm.setAccount({ address: whale, balance: parseEther('100') })
+console.log(await provider.getBalance(whale)) // 100000000000000000000n
+
+// Give it an ERC20 balance by writing the token's storage slot for you.
+await provider.tevm.deal({
+	erc20: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+	account: whale,
+	amount: 1_000_000n,
+})
+```
+
+`deal` locates the balance slot of the token and writes it, so it works on tokens that have no mint
+function.
+
+## Snapshotting a fork
+
+`dumpState` / `loadState` let you pay the fork's RPC cost once and restore that state instantly —
+useful as a test fixture.
+
+```ts twoslash
+// @noErrors
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+import { parseEther } from 'ethers'
+
+const source = await TevmProvider.createMemoryProvider({
+	fork: {
+		transport: http('https://mainnet.optimism.io')({}),
+		blockTag: 154_847_000n,
+	},
+})
+
+await source.tevm.setAccount({ address: `0x${'42'.repeat(20)}`, balance: parseEther('100') })
+
+const state = await source.tevm.dumpState()
+
+// Later — or in another test — restore without any network access.
+const restored = await TevmProvider.createMemoryProvider({})
+await restored.tevm.loadState({ state: state.state })
+
+console.log(await restored.getBalance(`0x${'42'.repeat(20)}`)) // 100000000000000000000n
+```
+
+## Caveats
+
+- The first read of each account or storage slot costs an upstream RPC round trip; subsequent reads
+  are cached in memory.
+- A public RPC will rate limit a large test suite. Use your own endpoint for CI.
+- `blockTag` accepts a `bigint` block number or a tag such as `'latest'`.
