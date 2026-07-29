@@ -28,6 +28,21 @@ export default defineConfig({
 		{ text: 'API', link: '/api/tevm-provider', match: '/api' },
 		{ text: 'Playground', link: '/playground', match: '/playground' },
 		{
+			text: 'Tevm docs',
+			items: [
+				{ text: 'Tevm', link: 'https://tevm.sh' },
+				{ text: 'Contract', link: 'https://contract.tevm.sh' },
+				{ text: 'Utils', link: 'https://utils.tevm.sh' },
+				{ text: 'Logger', link: 'https://logger.tevm.sh' },
+				{ text: 'Test', link: 'https://test.tevm.sh' },
+				{ text: 'Ethers', link: 'https://ethers.tevm.sh' },
+				{ text: 'Mud', link: 'https://mud.tevm.sh' },
+				{ text: 'CLI', link: 'https://cli.tevm.sh' },
+				{ text: 'Bundler', link: 'https://bundler.tevm.sh' },
+				{ text: 'Examples', link: 'https://examples.tevm.sh' },
+			],
+		},
+		{
 			text: 'Ecosystem',
 			items: [
 				{ text: 'Tevm', link: 'https://tevm.sh' },
