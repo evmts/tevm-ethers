@@ -2,21 +2,24 @@
 	"name": "@tevm/ethers",
 	"version": "1.0.0-rc.151",
 	"private": false,
-	"description": "A collection of ethers.js utilities for working with Tevm",
+	"description": "Ethers.js integration for Tevm",
 	"keywords": [
 		"ethers",
 		"solidity",
 		"forge",
 		"foundry",
-		"sol",
 		"typescript",
 		"web3",
-		"blockchain"
+		"blockchain",
+		"tevm"
 	],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/evmts/tevm-monorepo.git",
-		"directory": "extensions/ethers"
+		"url": "git+https://github.com/evmts/tevm-ethers.git"
+	},
+	"homepage": "https://ethers.tevm.sh",
+	"bugs": {
+		"url": "https://github.com/evmts/tevm-ethers/issues"
 	},
 	"license": "MIT",
 	"contributors": [
@@ -45,43 +48,56 @@
 		"src"
 	],
 	"scripts": {
-		"all": "bun run format && bun run lint && bun run build && bun run test:run && bun run generate:docs && bun run lint:deps && bun run lint:package",
-		"build": "nx run-many --targets=build:dist,build:types --projects=@tevm/ethers ",
+		"build": "pnpm run build:dist && pnpm run build:types",
 		"build:dist": "tsup",
 		"build:types": "tsup --dts-only",
-		"clean": "rm -rf node_modules && rm -rf artifacts && rm -rf dist && rm -rf cache",
 		"format": "biome format . --write",
-		"format:check": "biome format .",
 		"generate:docs": "typedoc",
-		"lint": "biome check . --write --unsafe",
-		"lint:check": "biome check . --verbose",
-		"lint:deps": "bunx depcheck",
-		"lint:package": "bunx publint --strict && attw --pack",
-		"test": "vitest --coverage",
+		"lint": "biome check .",
+		"release": "pnpm run build && changeset publish",
+		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
-		"test:run": "vitest run",
 		"test:ui": "vitest --ui",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"version-packages": "changeset version"
 	},
 	"dependencies": {
-		"@tevm/actions": "workspace:^",
-		"@tevm/client-types": "workspace:^",
-		"@tevm/common": "workspace:1.0.0-rc.151",
-		"@tevm/contract": "workspace:^",
-		"@tevm/decorators": "workspace:^",
-		"@tevm/node": "workspace:^",
-		"@tevm/utils": "workspace:^"
+		"@tevm/actions": "^1.0.0-next.149",
+		"@tevm/client-types": "^1.0.0-next.148",
+		"@tevm/common": "^1.0.0-next.148",
+		"@tevm/contract": "^1.0.0-next.149",
+		"@tevm/decorators": "^1.0.0-next.148",
+		"@tevm/node": "^1.0.0-next.148",
+		"@tevm/utils": "^1.0.0-next.148"
 	},
 	"devDependencies": {
-		"@tevm/tsconfig": "workspace:^",
-		"@tevm/tsupconfig": "workspace:^",
-		"@tevm/tx": "workspace:^",
-		"ethers": "^6.16.0"
+		"@biomejs/biome": "^2.5.6",
+		"@changesets/changelog-github": "^0.7.0",
+		"@changesets/cli": "^2.31.1",
+		"@tevm/tsconfig": "^1.0.0-next.142",
+		"@tevm/tsupconfig": "^1.0.0-next.148",
+		"@tevm/tx": "^1.0.0-next.148",
+		"@vitest/coverage-v8": "^4.1.10",
+		"ethers": "^6.17.0",
+		"tevm": "^1.0.0-next.149",
+		"tsup": "^8.5.1",
+		"typedoc": "^0.28.19",
+		"typescript": "^6.0.3",
+		"viem": "2.46.0",
+		"vitest": "^4.1.10"
 	},
 	"peerDependencies": {
-		"ethers": ">6.0.0"
+		"ethers": ">=6.0.0 <7",
+		"tevm": ">=1.0.0",
+		"viem": ">=2.37.9 <=2.46.0"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"provenance": true
+	},
+	"packageManager": "pnpm@9.15.9",
+	"engines": {
+		"node": "^24.0.0",
+		"pnpm": "^9.0.0"
 	}
 }
