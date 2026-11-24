@@ -1,5 +1,13 @@
 # @tevm/ethers
 
+## 1.0.0
+
+### Patch Changes
+
+- [`9b84f29`](https://github.com/evmts/tevm-ethers/commit/9b84f29c8674f541884a2c89e7f43a5bbc7e08f5) Thanks [@roninjin10](https://github.com/roninjin10)! - Fix and expand JSDoc across `TevmProvider`, `Contract`, `Interface`, and the contract types: the examples now use APIs that exist (`provider.tevm.contract` instead of the removed `script`, `createTevmNode(...).extend(...)` instead of the removed http client), include their imports, and document `@throws`.
+
+- [`a16d906`](https://github.com/evmts/tevm-ethers/commit/a16d906b98436ae527604a0bfa95064c48af482e) Thanks [@roninjin10](https://github.com/roninjin10)! - Wait for Tevm node initialization before returning a memory provider. Expose a request API compatible with ethers `BrowserProvider`, preserve ethers `Interface` fragments while inferring contract types, and distinguish transaction responses from decoded static calls.
+
 ## 1.0.0-rc.151
 
 ### Patch Changes
@@ -724,6 +732,7 @@
 ### Patch Changes
 
 - [#1186](https://github.com/evmts/tevm-monorepo/pull/1186) [`7765446`](https://github.com/evmts/tevm-monorepo/commit/7765446beec1391a00f3d3dd8d015d5205e0371a) Thanks [@roninjin10](https://github.com/roninjin10)! - Moved files around to colocate code better. Some packages are disappearing
+
   - Tevm/Zod is now part of Tevm/actions
   - Tevm/actions-types moved to Tevm/actions
   - Tevm/procedures-types moved to Tevm/procedures
@@ -1163,6 +1172,7 @@
   ## High level overview
 
   Previously the best way to get typesafe [contracts](https://docs.ethers.org/v6/api/contract/) with ethers was [typechain](https://github.com/dethcrypto/TypeChain) typechain improved the dev experience of using contracts via creating typesafe contracts via codegen. Tevm builds on this idea by providing the same benifit purely at runtime without any build or codegen steps.
+
   - `@tevm/ethers` exports a single function `createEthersContract`
   - `@tevm/ethers` only supports ethers v6 at this time
 
@@ -1183,13 +1193,13 @@
   ```typescript
   function createEthersContract<
     TAddresses extends Record<number, Address>,
-    TAbi extends Abi,
+    TAbi extends Abi
   >(
     contract: Pick<
       TevmContract<any, TAddresses, TAbi, any>,
       "abi" | "addresses"
     >,
-    options: CreateEthersContractOptions<keyof TAddresses & number>,
+    options: CreateEthersContractOptions<keyof TAddresses & number>
   ): TypesafeEthersContract<TAbi>;
   ```
 
@@ -1197,6 +1207,7 @@
   Creates a typesafe [ethers contract](https://docs.ethers.org/v6/api/contract/) from an tevm contract. This function provides typesafe contracts for Ethereum development with Ethers.js and Tevm.
 
   **Params**
+
   - `contract`: This parameter should be an Tevm contract. It should include the 'abi' and 'addresses' properties.
   - `options`: This parameter should be an object of type `CreateEthersContractOptions`. It should include either a `chainId` or an `address`, along with the `runner`, which should be an Ethers.js provider or signer.
 
@@ -1240,6 +1251,7 @@
   An options object type used by `createEthersContract` function. It can either provide a `chainId` if Tevm config has addresses for contracts configured for that chain or provide the `address` prop to specify the address directly. Both options require a `runner` property which is an Ethers.js provider or signer.
 
   **Params**
+
   - `chainId` or `address`: You should provide either the chainId or the address of the contract. If you use the `chainId` option, Tevm should have the addresses for contracts configured for that chain. If you use the `address` option, specify the address directly.
   - `runner`: This is an Ethers.js provider or signer.
 
