@@ -6,109 +6,110 @@
 
 # Class: TevmProvider
 
-Defined in: [extensions/ethers/src/TevmProvider.js:108](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/TevmProvider.js#L108)
+Defined in: [src/TevmProvider.js:110](https://github.com/evmts/tevm-ethers/blob/main/TevmProvider.js#L110)
 
-An [ethers JsonRpcApiProvider](https://docs.ethers.org/v6/api/providers/jsonrpc/#JsonRpcApiProvider) using a tevm MemoryClient as it's backend
+An [ethers JsonRpcApiProvider](https://docs.ethers.org/v6/api/providers/jsonrpc/#JsonRpcApiProvider) backed by a Tevm node.
 
 ## TevmProvider
 
-The TevmProvider class is an instance of an ethers provider using Tevm as it's backend. The `createMemoryProvider` method can be used to create an in memory instance of tevm using a [memoryClient](../clients/) as it's backend.
+`TevmProvider` is a normal ethers v6 provider whose JSON-RPC backend is an in-process Tevm EVM
+instead of a remote node. No server, no socket, no `anvil`. Use [TevmProvider.createMemoryProvider](#creatememoryprovider)
+to create a provider with a fresh in-memory node, or pass an existing Tevm node to the constructor.
 
 ## Examples
 
 ```typescript
-import {TevmProvider} from '@tevm/ethers'
+import { TevmProvider } from '@tevm/ethers'
 
 const provider = await TevmProvider.createMemoryProvider({
-  fork: {
-    transport: http('https://mainnet.optimism.io')({}),
-  },
+  miningConfig: { type: 'auto' },
 })
+
+console.log(await provider.send('eth_chainId', [])) // '0x384'
+console.log(await provider.getBlockNumber()) // 0
 ```
 
-## Using with an http client
-
-The constructor takes any instance of tevm including the `httpClient`.
+## Forking a live network
 
 ```typescript
-import {createHttpClient} from '@tevm/http-client'
-const provider = new TevmProvider(createHttpClient({url: 'https://localhost:8080'}))
-```
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
 
-## Ethers provider support
-
-You can use all the normal ethers apis to interact with tevm.
-
-```typescript
 const provider = await TevmProvider.createMemoryProvider({
-  fork: {
-    transport: http('https://mainnet.optimism.io')({}),
-  },
+  fork: { transport: http('https://mainnet.optimism.io')({}) },
 })
 
-console.log(
-  await provider.getBlockNumber()
-) // 10
+const blockNumber = await provider.getBlockNumber()
+console.log(blockNumber) // the forked block height
+```
+
+## Using an existing Tevm node
+
+The constructor accepts any Tevm node extended with `tevmActions()` and `tevmSend()`, which lets
+several providers (or a viem client and an ethers provider) share one EVM instance.
+
+```typescript
+import { TevmProvider } from '@tevm/ethers'
+import { tevmActions, tevmSend } from '@tevm/decorators'
+import { createTevmNode } from '@tevm/node'
+
+const node = createTevmNode().extend(tevmActions()).extend(tevmSend())
+
+const provider = new TevmProvider(node)
+console.log(await provider.getBlockNumber()) // 0
 ```
 
 ## Tevm actions support
 
-The entire [tevm api](../clients/) exists on the `tevm` property. For example the `tevm.script` method can be used to run an arbitrary script.
+The Tevm action API is available on the [TevmProvider#tevm](#tevm) property.
 
 ```typescript
-import {TevmProvider} from '@tevm/ethers'
-import {createContract} from 'tevm'
+import { TevmProvider } from '@tevm/ethers'
+import { createContract } from '@tevm/contract'
 
-const provider = await TevmProvider.createMemoryProvider({
-  fork: {
-    transport: http('https://mainnet.optimism.io')({}),
-  },
-})
+const provider = await TevmProvider.createMemoryProvider({})
 
 const addContract = createContract({
   name: 'AddContract',
-  humanReadableAbi: [
-    'function add(uint256 a, uint256 b) public pure returns (uint256)',
-  ],
-  deployedBytecode: '0x608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220a8f4b7187c62760aefc097c1827799c61a6df322acc9d7575862a525f9aa59a364736f6c63430008170033',
-  bytecode: '0x608060405234801561000f575f80fd5b506101a58061001d5f395ff3fe608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220a8f4b7187c62760aefc097c1827799c61a6df322acc9d7575862a525f9aa59a364736f6c63430008170033',
-} as const)
+  humanReadableAbi: ['function add(uint256 a, uint256 b) public pure returns (uint256)'],
+  address: `0x${'42'.repeat(20)}`,
+  deployedBytecode:
+    '0x608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220a8f4b7187c62760aefc097c1827799c61a6df322acc9d7575862a525f9aa59a364736f6c63430008170033',
+})
 
-const result = await provider.tevm.script(addContract.read.add(390n, 30n))
+await provider.tevm.setAccount({
+  address: addContract.address,
+  deployedBytecode: addContract.deployedBytecode,
+})
 
-console.log(result)
-//  createdAddresses: new Set(),
-//  data: 420n,
-//  executionGasUsed: 927n,
-//  gas: 16776288n,
-//  logs: [],
-//  rawData: '0x00000000000000000000000000000000000000000000000000000000000001a4',
-//  selfdestruct: new Set(),
+const result = await provider.tevm.contract(addContract.read.add(390n, 30n))
+console.log(result.data) // 420n
 ```
 
 ## Tevm JSON-RPC support
 
-An ethers TevmProvider supports the tevm [JSON-RPC methods](../json-rpc). For example you can use `tevm_account` to set account
+`provider.send` accepts the Tevm JSON-RPC methods (`tevm_setAccount`, `tevm_getAccount`,
+`tevm_call`, `tevm_mine`, `tevm_dumpState`, `tevm_loadState`) in addition to the standard
+`eth_*` methods.
 
 ```typescript
-await provider.send('tevm_setAccount', [{
-  address: `0x${'69'.repeat(20)}`,
-  nonce: toHex(1n),
-  balance: toHex(420n),
-}]),
-console.log(await provider.send('tevm_getAccount', [{
-  address: `0x${'69'.repeat(20)}`,
-}]))
-//	address: '0x6969696969696969696969696969696969696969',
-//	balance: toHex(420n),
-//	deployedBytecode: '0x00',
-//	nonce: toHex(1n),
-//	storageRoot: '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421',
+import { TevmProvider } from '@tevm/ethers'
+import { toHex } from '@tevm/utils'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+await provider.send('tevm_setAccount', [
+  { address: `0x${'69'.repeat(20)}`, nonce: toHex(1n), balance: toHex(420n) },
+])
+
+const account = await provider.send('tevm_getAccount', [{ address: `0x${'69'.repeat(20)}` }])
+console.log(account.balance) // '0x1a4'
 ```
 
 ## See
 
-[Tevm Clients Docs](https://tevm.sh/learn/clients/)
+ - [Tevm Node docs](https://node.tevm.sh)
+ - [ethers v6 docs](https://docs.ethers.org/v6/)
 
 ## Extends
 
@@ -120,17 +121,39 @@ console.log(await provider.send('tevm_getAccount', [{
 
 > **new TevmProvider**(`client`): `TevmProvider`
 
-Defined in: [extensions/ethers/src/TevmProvider.js:173](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/TevmProvider.js#L173)
+Defined in: [src/TevmProvider.js:191](https://github.com/evmts/tevm-ethers/blob/main/TevmProvider.js#L191)
+
+Wraps an existing Tevm node (or any object exposing one on a `tevm` property) in an ethers provider.
+
+Batching and response caching are disabled because the backend is in-process: requests are
+already effectively free and caching would hide state mutations made through `provider.tevm`.
 
 #### Parameters
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `client` | `TevmSendApi` & `TevmActionsApi` \| \{ `tevm`: `TevmSendApi` & `TevmActionsApi`; \} | An instance of a tevm Memory client or TevmNode with TevmSendApi |
+| `client` | `TevmSendApi` & `TevmActionsApi` \| \{ `tevm`: `TevmSendApi` & `TevmActionsApi`; \} | A Tevm node extended with `tevmSend()` and `tevmActions()`, or a client exposing one as `.tevm`. |
 
 #### Returns
 
 `TevmProvider`
+
+#### Throws
+
+If `client` neither implements `send`/`sendBulk` nor exposes a node on a `tevm` property.
+
+#### Example
+
+```ts
+import { TevmProvider } from '@tevm/ethers'
+import { tevmActions, tevmSend } from '@tevm/decorators'
+import { createTevmNode } from '@tevm/node'
+
+const node = createTevmNode().extend(tevmActions()).extend(tevmSend())
+
+const provider = new TevmProvider(node)
+console.log(await provider.getBlockNumber()) // 0
+```
 
 #### Overrides
 
@@ -140,7 +163,7 @@ Defined in: [extensions/ethers/src/TevmProvider.js:173](https://github.com/evmts
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="tevm"></a> `tevm` | `TevmSendApi` & `TevmActionsApi` | An instance of the TevmClient interface. **See** [Tevm Client reference](https://tevm.sh/reference/tevm/client-types/type-aliases/tevmclient/) **Example** `import {TevmProvider} from '@tevm/ethers' import {createContract} from 'tevm' const provider = await TevmProvider.createMemoryProvider({ fork: { transport: http('https://mainnet.optimism.io')({}), }, }) const addContract = createContract({ name: 'AddContract', humanReadableAbi: [ 'function add(uint256 a, uint256 b) public pure returns (uint256)', ], deployedBytecode: '0x608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220a8f4b7187c62760aefc097c1827799c61a6df322acc9d7575862a525f9aa59a364736f6c63430008170033', bytecode: '0x608060405234801561000f575f80fd5b506101a58061001d5f395ff3fe608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220a8f4b7187c62760aefc097c1827799c61a6df322acc9d7575862a525f9aa59a364736f6c63430008170033', } as const) const result = await provider.tevm.script(addContract.read.add(390n, 30n)) console.log(result) // createdAddresses: new Set(), // data: 420n, // executionGasUsed: 927n, // gas: 16776288n, // logs: [], // rawData: '0x00000000000000000000000000000000000000000000000000000000000001a4', // selfdestruct: new Set(),` | [extensions/ethers/src/TevmProvider.js:168](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/TevmProvider.js#L168) |
+| <a id="tevm"></a> `tevm` | `TevmSendApi` & `TevmActionsApi` | The Tevm action + JSON-RPC API of the underlying node. Every Tevm action handler is available here: `call`, `contract`, `deploy`, `deal`, `mine`, `getAccount`, `setAccount`, `dumpState`, `loadState`, plus `send`/`sendBulk` for raw JSON-RPC. **Example** `import { TevmProvider } from '@tevm/ethers' const provider = await TevmProvider.createMemoryProvider({}) await provider.tevm.setAccount({ address: `0x${'69'.repeat(20)}`, balance: 420n }) const account = await provider.tevm.getAccount({ address: `0x${'69'.repeat(20)}` }) console.log(account.balance) // 420n` **See** [Tevm actions reference](https://node.tevm.sh/api/actions) | [src/TevmProvider.js:169](https://github.com/evmts/tevm-ethers/blob/main/TevmProvider.js#L169) |
 
 ## Accessors
 
@@ -150,7 +173,7 @@ Defined in: [extensions/ethers/src/TevmProvider.js:173](https://github.com/evmts
 
 > **get** **\_network**(): `Network`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:235
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:235](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L235)
 
 Gets the [[Network]] this provider has committed to. On each call, the network
  is detected, and if it has changed, the call will reject.
@@ -165,13 +188,49 @@ Gets the [[Network]] this provider has committed to. On each call, the network
 
 ***
 
+### \_requestRate
+
+#### Get Signature
+
+> **get** **\_requestRate**(): `number` \| `null`
+
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:263](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L263)
+
+Limit the number of requests per second. (default: no limit)
+
+##### Returns
+
+`number` \| `null`
+
+#### Set Signature
+
+> **set** **\_requestRate**(`value`): `void`
+
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:264](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L264)
+
+##### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `value` | `number` \| `null` |
+
+##### Returns
+
+`void`
+
+#### Inherited from
+
+`JsonRpcApiProvider._requestRate`
+
+***
+
 ### destroyed
 
 #### Get Signature
 
 > **get** **destroyed**(): `boolean`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:419
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:424](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L424)
 
 If this provider has been destroyed using the [[destroy]] method.
 
@@ -195,7 +254,7 @@ If this provider has been destroyed using the [[destroy]] method.
 
 > **get** **disableCcipRead**(): `boolean`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:282
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:287](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L287)
 
 Prevent any CCIP-read operation, regardless of whether requested
  in a [[call]] using ``enableCcipRead``.
@@ -208,7 +267,7 @@ Prevent any CCIP-read operation, regardless of whether requested
 
 > **set** **disableCcipRead**(`value`): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:283
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:288](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L288)
 
 ##### Parameters
 
@@ -232,7 +291,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **get** **paused**(): `boolean`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:438
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:443](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L443)
 
 Whether the provider is currently paused.
 
@@ -252,7 +311,7 @@ Whether the provider is currently paused.
 
 > **set** **paused**(`pause`): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:439
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:444](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L444)
 
 ##### Parameters
 
@@ -276,7 +335,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **get** **plugins**(): `AbstractProviderPlugin`[]
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:269
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:274](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L274)
 
 Returns all the registered plug-ins.
 
@@ -296,7 +355,7 @@ Returns all the registered plug-ins.
 
 > **get** **pollingInterval**(): `number`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:260
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:265](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L265)
 
 ##### Returns
 
@@ -314,7 +373,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **get** **provider**(): `this`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:265
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:270](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L270)
 
 Returns ``this``, to allow an **AbstractProvider** to implement
  the [[ContractRunner]] interface.
@@ -335,7 +394,7 @@ Returns ``this``, to allow an **AbstractProvider** to implement
 
 > **get** **ready**(): `boolean`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:281
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:281](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L281)
 
 Returns true only if the [[_start]] has been called.
 
@@ -353,7 +412,7 @@ Returns true only if the [[_start]] has been called.
 
 > **\_clearTimeout**(`timerId`): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:374
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:379](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L379)
 
 Clear a timer created using the [[_setTimeout]] method.
 
@@ -377,7 +436,7 @@ Clear a timer created using the [[_setTimeout]] method.
 
 > **\_detectNetwork**(): `Promise`\<`Network`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:256
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:256](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L256)
 
 Sub-classes may override this; it detects the *actual* network that
  we are **currently** connected to.
@@ -399,7 +458,7 @@ Sub-classes may override this; it detects the *actual* network that
 
 > **\_forEachSubscriber**(`func`): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:387
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:392](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L392)
 
 Perform %%func%% on each subscriber.
 
@@ -423,7 +482,7 @@ Perform %%func%% on each subscriber.
 
 > **\_getAddress**(`address`): `string` \| `Promise`\<`string`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:332
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:337](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L337)
 
 Returns or resolves to the address for %%address%%, resolving ENS
  names and [[Addressable]] objects and returning if already an
@@ -449,7 +508,7 @@ Returns or resolves to the address for %%address%%, resolving ENS
 
 > **\_getBlockTag**(`blockTag?`): `string` \| `Promise`\<`string`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:337
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:342](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L342)
 
 Returns or resolves to a valid block tag for %%blockTag%%, resolving
  negative values and returning if already a valid block tag.
@@ -474,7 +533,7 @@ Returns or resolves to a valid block tag for %%blockTag%%, resolving
 
 > **\_getFilter**(`filter`): `PerformActionFilter` \| `Promise`\<`PerformActionFilter`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:343
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:348](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L348)
 
 Returns or resolves to a filter for %%filter%%, resolving any ENS
  names or [[Addressable]] object and returning if already a valid
@@ -500,7 +559,7 @@ Returns or resolves to a filter for %%filter%%, resolving any ENS
 
 > **\_getOption**\<`K`\>(`key`): `JsonRpcApiProviderOptions`\[`K`\]
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:230
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:230](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L230)
 
 Returns the value associated with the option %%key%%.
 
@@ -510,7 +569,7 @@ Returns the value associated with the option %%key%%.
 
 | Type Parameter |
 | ------ |
-| `K` *extends* keyof `JsonRpcApiProviderOptions` |
+| <a id="type-parameter-k"></a> `K` *extends* keyof `JsonRpcApiProviderOptions` |
 
 #### Parameters
 
@@ -532,7 +591,7 @@ Returns the value associated with the option %%key%%.
 
 > **\_getProvider**(`chainId`): `AbstractProvider`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:364
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:369](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L369)
 
 #### Parameters
 
@@ -554,7 +613,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **\_getSubscriber**(`sub`): `Subscriber`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:277
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:277](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L277)
 
 Return a Subscriber that will manage the %%sub%%.
 
@@ -581,7 +640,7 @@ Return a Subscriber that will manage the %%sub%%.
 
 > **\_getTransactionRequest**(`_request`): `PerformActionTransaction` \| `Promise`\<`PerformActionTransaction`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:349
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:354](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L354)
 
 Returns or resolves to a transaction for %%request%%, resolving
  any ENS names or [[Addressable]] and returning if already a valid
@@ -607,7 +666,7 @@ Returns or resolves to a transaction for %%request%%, resolving
 
 > **\_perform**(`req`): `Promise`\<`any`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:248
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:248](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L248)
 
 Resolves to the non-normalized value by performing %%req%%.
 
@@ -634,7 +693,7 @@ Resolves to the non-normalized value by performing %%req%%.
 
 > **\_recoverSubscriber**(`oldSub`, `newSub`): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:402
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:407](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L407)
 
 If a [[Subscriber]] fails and needs to replace itself, this
  method may be used.
@@ -665,9 +724,11 @@ If a [[Subscriber]] fails and needs to replace itself, this
 
 > **\_send**(`payload`): `Promise`\<(`JsonRpcResult` \| `JsonRpcError`)[]\>
 
-Defined in: [extensions/ethers/src/TevmProvider.js:188](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/TevmProvider.js#L188)
+Defined in: [src/TevmProvider.js:232](https://github.com/evmts/tevm-ethers/blob/main/TevmProvider.js#L232)
 
-Sends a JSON-RPC %%payload%% (or a batch) to the underlying tevm instance.
+Sends a JSON-RPC payload (or a batch) to the underlying Tevm node.
+
+Called by ethers internals; prefer `provider.send(method, params)` in application code.
 
 #### Parameters
 
@@ -679,6 +740,22 @@ Sends a JSON-RPC %%payload%% (or a batch) to the underlying tevm instance.
 
 `Promise`\<(`JsonRpcResult` \| `JsonRpcError`)[]\>
 
+#### Throws
+
+If the underlying node rejects the request (transport-level failure). Method-level
+failures are returned as JSON-RPC error objects rather than thrown.
+
+#### Example
+
+```ts
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({})
+
+// `send` is the public API; it delegates to `_send` under the hood
+console.log(await provider.send('eth_chainId', [])) // '0x384'
+```
+
 #### Overrides
 
 `JsonRpcApiProvider._send`
@@ -689,7 +766,7 @@ Sends a JSON-RPC %%payload%% (or a batch) to the underlying tevm instance.
 
 > **\_setTimeout**(`_func`, `timeout?`): `number`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:383
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:388](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L388)
 
 Create a timer that will execute %%func%% after at least %%timeout%%
  (in ms). If %%timeout%% is unspecified, then %%func%% will execute
@@ -719,7 +796,7 @@ Create a timer that will execute %%func%% after at least %%timeout%%
 
 > **\_start**(): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:264
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:264](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L264)
 
 Sub-classes **MUST** call this. Until [[_start]] has been called, no calls
  will be passed to [[_send]] from [[send]]. If it is overridden, then
@@ -741,7 +818,7 @@ Sub-classes **MUST** call this. Until [[_start]] has been called, no calls
 
 > **\_waitUntilReady**(): `Promise`\<`void`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:270
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:270](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L270)
 
 Resolves once the [[_start]] has been called. This can be used in
  sub-classes to defer sending data until the connection has been
@@ -761,7 +838,7 @@ Resolves once the [[_start]] has been called. This can be used in
 
 > **\_wrapBlock**(`value`, `network`): `Block`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:293
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:298](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L298)
 
 Provides the opportunity for a sub-class to wrap a block before
  returning it, to add additional properties or an alternate
@@ -788,7 +865,7 @@ Provides the opportunity for a sub-class to wrap a block before
 
 > **\_wrapLog**(`value`, `network`): `Log`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:299
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:304](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L304)
 
 Provides the opportunity for a sub-class to wrap a log before
  returning it, to add additional properties or an alternate
@@ -815,7 +892,7 @@ Provides the opportunity for a sub-class to wrap a log before
 
 > **\_wrapTransactionReceipt**(`value`, `network`): `TransactionReceipt`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:305
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:310](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L310)
 
 Provides the opportunity for a sub-class to wrap a transaction
  receipt before returning it, to add additional properties or an
@@ -842,7 +919,7 @@ Provides the opportunity for a sub-class to wrap a transaction
 
 > **\_wrapTransactionResponse**(`tx`, `network`): `TransactionResponse`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:311
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:316](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L316)
 
 Provides the opportunity for a sub-class to wrap a transaction
  response before returning it, to add additional properties or an
@@ -869,7 +946,7 @@ Provides the opportunity for a sub-class to wrap a transaction
 
 > **addListener**(`event`, `listener`): `Promise`\<`TevmProvider`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:410
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:415](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L415)
 
 Alias for [[on]].
 
@@ -894,7 +971,7 @@ Alias for [[on]].
 
 > **attachPlugin**(`plugin`): `this`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:273
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:278](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L278)
 
 Attach a new plug-in.
 
@@ -918,7 +995,7 @@ Attach a new plug-in.
 
 > **broadcastTransaction**(`signedTx`): `Promise`\<`TransactionResponse`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:358
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:363](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L363)
 
 Broadcasts the %%signedTx%% to the network, adding it to the
  memory pool of any node for which the transaction meets the
@@ -944,7 +1021,7 @@ Broadcasts the %%signedTx%% to the network, adding it to the
 
 > **call**(`_tx`): `Promise`\<`string`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:353
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:358](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L358)
 
 Simulate the execution of %%tx%%. If the call reverts, it will
  throw a [[CallExceptionError]] which includes the revert data.
@@ -969,7 +1046,7 @@ Simulate the execution of %%tx%%. If the call reverts, it will
 
 > **ccipReadFetch**(`tx`, `calldata`, `urls`): `Promise`\<`string` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:287
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:292](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L292)
 
 Resolves to the data for executing the CCIP-read operations.
 
@@ -995,7 +1072,7 @@ Resolves to the data for executing the CCIP-read operations.
 
 > **destroy**(): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:331
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:331](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L331)
 
 Sub-classes may use this to shutdown any sockets or release their
  resources and reject any pending requests.
@@ -1016,7 +1093,7 @@ Sub-classes may use this to shutdown any sockets or release their
 
 > **emit**(`event`, ...`args`): `Promise`\<`boolean`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:405
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:410](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L410)
 
 Triggers each listener for %%event%% with the %%args%%.
 
@@ -1041,7 +1118,7 @@ Triggers each listener for %%event%% with the %%args%%.
 
 > **estimateGas**(`_tx`): `Promise`\<`bigint`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:352
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:357](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L357)
 
 Estimates the amount of gas required to execute %%tx%%.
 
@@ -1065,7 +1142,7 @@ Estimates the amount of gas required to execute %%tx%%.
 
 > **getAvatar**(`name`): `Promise`\<`string` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:366
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:371](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L371)
 
 #### Parameters
 
@@ -1087,7 +1164,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **getBalance**(`address`, `blockTag?`): `Promise`\<`bigint`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:354
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:359](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L359)
 
 Get the account balance (in wei) of %%address%%. If %%blockTag%%
  is specified and the node supports archive access for that
@@ -1119,7 +1196,7 @@ On nodes without archive access enabled, the %%blockTag%% may be
 
 > **getBlock**(`block`, `prefetchTxs?`): `Promise`\<`Block` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:359
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:364](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L364)
 
 Resolves to the block for %%blockHashOrBlockTag%%.
 
@@ -1149,7 +1226,7 @@ Resolves to the block for %%blockHashOrBlockTag%%.
 
 > **getBlockNumber**(): `Promise`\<`number`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:326
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:331](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L331)
 
 Get the current block number.
 
@@ -1167,7 +1244,7 @@ Get the current block number.
 
 > **getCode**(`address`, `blockTag?`): `Promise`\<`string`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:356
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:361](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L361)
 
 Get the bytecode for %%address%%.
 
@@ -1197,7 +1274,7 @@ On nodes without archive access enabled, the %%blockTag%% may be
 
 > **getFeeData**(): `Promise`\<`FeeData`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:351
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:356](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L356)
 
 Get the best guess at the recommended [[FeeData]].
 
@@ -1215,7 +1292,7 @@ Get the best guess at the recommended [[FeeData]].
 
 > **getLogs**(`_filter`): `Promise`\<`Log`[]\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:363
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:368](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L368)
 
 Resolves to the list of Logs that match %%filter%%
 
@@ -1239,7 +1316,7 @@ Resolves to the list of Logs that match %%filter%%
 
 > **getNetwork**(): `Promise`\<`Network`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:350
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:355](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L355)
 
 Get the connected [[Network]].
 
@@ -1257,7 +1334,7 @@ Get the connected [[Network]].
 
 > **getPlugin**\<`T`\>(`name`): `T` \| `null`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:277
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:282](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L282)
 
 Get a plugin by name.
 
@@ -1265,7 +1342,7 @@ Get a plugin by name.
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `T` *extends* `AbstractProviderPlugin` | `AbstractProviderPlugin` |
+| <a id="type-parameter-t"></a> `T` *extends* `AbstractProviderPlugin` | `AbstractProviderPlugin` |
 
 #### Parameters
 
@@ -1287,7 +1364,7 @@ Get a plugin by name.
 
 > **getResolver**(`name`): `Promise`\<`EnsResolver` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:365
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:370](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L370)
 
 #### Parameters
 
@@ -1309,7 +1386,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **getRpcError**(`payload`, `_error`): `Error`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:302
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:302](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L302)
 
 Returns an ethers-style Error for the given JSON-RPC error
  %%payload%%, coalescing the various strings and error shapes
@@ -1337,7 +1414,7 @@ Returns an ethers-style Error for the given JSON-RPC error
 
 > **getRpcRequest**(`req`): \{ `args`: `any`[]; `method`: `string`; \} \| `null`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:292
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:292](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L292)
 
 Returns the request method and arguments required to perform
  %%req%%.
@@ -1362,7 +1439,7 @@ Returns the request method and arguments required to perform
 
 > **getRpcTransaction**(`tx`): `JsonRpcTransactionRequest`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:287
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:287](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L287)
 
 Returns %%tx%% as a normalized JSON-RPC transaction request,
  which has all values hexlified and any numeric values converted
@@ -1388,7 +1465,7 @@ Returns %%tx%% as a normalized JSON-RPC transaction request,
 
 > **getSigner**(`address?`): `Promise`\<`JsonRpcSigner`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:329
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:329](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L329)
 
 Resolves to the [[Signer]] account for  %%address%% managed by
  the client.
@@ -1421,7 +1498,7 @@ Resolves to the [[Signer]] account for  %%address%% managed by
 
 > **getStorage**(`address`, `_position`, `blockTag?`): `Promise`\<`string`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:357
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:362](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L362)
 
 Get the storage slot value for %%address%% at slot %%position%%.
 
@@ -1452,7 +1529,7 @@ On nodes without archive access enabled, the %%blockTag%% may be
 
 > **getTransaction**(`hash`): `Promise`\<`TransactionResponse` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:360
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:365](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L365)
 
 Resolves to the transaction for %%hash%%.
 
@@ -1479,7 +1556,7 @@ Resolves to the transaction for %%hash%%.
 
 > **getTransactionCount**(`address`, `blockTag?`): `Promise`\<`number`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:355
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:360](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L360)
 
 Get the number of transactions ever sent for %%address%%, which
  is used as the ``nonce`` when sending a transaction. If
@@ -1513,7 +1590,7 @@ On nodes without archive access enabled, the %%blockTag%% may be
 
 > **getTransactionReceipt**(`hash`): `Promise`\<`TransactionReceipt` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:361
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:366](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L366)
 
 Resolves to the transaction receipt for %%hash%%, if mined.
 
@@ -1541,7 +1618,7 @@ Resolves to the transaction receipt for %%hash%%, if mined.
 
 > **getTransactionResult**(`hash`): `Promise`\<`string` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:362
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:367](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L367)
 
 Resolves to the result returned by the executions of %%hash%%.
 
@@ -1568,7 +1645,7 @@ Resolves to the result returned by the executions of %%hash%%.
 
 > **listAccounts**(): `Promise`\<`JsonRpcSigner`[]\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:330
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:330](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L330)
 
 #### Returns
 
@@ -1584,7 +1661,7 @@ Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@
 
 > **listenerCount**(`event?`): `Promise`\<`number`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:406
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:411](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L411)
 
 Resolves to the number of listeners for %%event%%.
 
@@ -1608,7 +1685,7 @@ Resolves to the number of listeners for %%event%%.
 
 > **listeners**(`event?`): `Promise`\<`Listener`[]\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:407
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:412](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L412)
 
 Resolves to the listeners for %%event%%.
 
@@ -1630,9 +1707,9 @@ Resolves to the listeners for %%event%%.
 
 ### lookupAddress()
 
-> **lookupAddress**(`address`): `Promise`\<`string` \| `null`\>
+> **lookupAddress**(`address`, `coinType?`): `Promise`\<`string` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:368
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:373](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L373)
 
 Resolves to the ENS name associated for the %%address%% or
  ``null`` if the //primary name// is not configured.
@@ -1645,6 +1722,7 @@ Resolves to the ENS name associated for the %%address%% or
 | Parameter | Type |
 | ------ | ------ |
 | `address` | `string` |
+| `coinType?` | `BigNumberish` |
 
 #### Returns
 
@@ -1660,7 +1738,7 @@ Resolves to the ENS name associated for the %%address%% or
 
 > **off**(`event`, `listener?`): `Promise`\<`TevmProvider`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:408
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:413](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L413)
 
 Unregister the %%listener%% for %%event%%. If %%listener%%
  is unspecified, all listeners are unregistered.
@@ -1686,7 +1764,7 @@ Unregister the %%listener%% for %%event%%. If %%listener%%
 
 > **on**(`event`, `listener`): `Promise`\<`TevmProvider`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:403
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:408](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L408)
 
 Registers a %%listener%% that is called whenever the
  %%event%% occurs until unregistered.
@@ -1712,7 +1790,7 @@ Registers a %%listener%% that is called whenever the
 
 > **once**(`event`, `listener`): `Promise`\<`TevmProvider`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:404
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:409](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L409)
 
 Registers a %%listener%% that is called the next time
  %%event%% occurs.
@@ -1738,7 +1816,7 @@ Registers a %%listener%% that is called the next time
 
 > **pause**(`dropWhilePaused?`): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:445
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:450](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L450)
 
 Pause the provider. If %%dropWhilePaused%%, any events that occur
  while paused are dropped, otherwise all events will be emitted once
@@ -1764,7 +1842,7 @@ Pause the provider. If %%dropWhilePaused%%, any events that occur
 
 > **removeAllListeners**(`event?`): `Promise`\<`TevmProvider`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:409
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:414](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L414)
 
 Unregister all listeners for %%event%%.
 
@@ -1788,7 +1866,7 @@ Unregister all listeners for %%event%%.
 
 > **removeListener**(`event`, `listener`): `Promise`\<`TevmProvider`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:411
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:416](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L416)
 
 Alias for [[off]].
 
@@ -1809,11 +1887,33 @@ Alias for [[off]].
 
 ***
 
+### request()
+
+> **request**(`request`): `Promise`\<`any`\>
+
+Defined in: [src/TevmProvider.js:210](https://github.com/evmts/tevm-ethers/blob/main/TevmProvider.js#L210)
+
+See [[link-eip-1193]] for details on this method.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | \{ `method`: `string`; `params?`: `any`[] \| `Record`\<`string`, `any`\>; \} |
+| `request.method` | `string` |
+| `request.params?` | `any`[] \| `Record`\<`string`, `any`\> |
+
+#### Returns
+
+`Promise`\<`any`\>
+
+***
+
 ### resolveName()
 
-> **resolveName**(`name`): `Promise`\<`string` \| `null`\>
+> **resolveName**(`name`, `coinType?`): `Promise`\<`string` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:367
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:372](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L372)
 
 Resolves to the address configured for the %%ensName%% or
  ``null`` if unconfigured.
@@ -1823,6 +1923,7 @@ Resolves to the address configured for the %%ensName%% or
 | Parameter | Type |
 | ------ | ------ |
 | `name` | `string` |
+| `coinType?` | `BigNumberish` |
 
 #### Returns
 
@@ -1838,7 +1939,7 @@ Resolves to the address configured for the %%ensName%% or
 
 > **resume**(): `void`
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:449
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:454](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L454)
 
 Resume the provider.
 
@@ -1856,7 +1957,7 @@ Resume the provider.
 
 > **send**(`method`, `params`): `Promise`\<`any`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:316
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts:316](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/provider-jsonrpc.d.ts#L316)
 
 Requests the %%method%% with %%params%% via the JSON-RPC protocol
  over the underlying channel. This can be used to call methods
@@ -1891,7 +1992,7 @@ Requests the %%method%% with %%params%% via the JSON-RPC protocol
 
 > **waitForBlock**(`blockTag?`): `Promise`\<`Block`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:370
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:375](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L375)
 
 Resolves to the block at %%blockTag%% once it has been mined.
 
@@ -1918,7 +2019,7 @@ Resolves to the block at %%blockTag%% once it has been mined.
 
 > **waitForTransaction**(`hash`, `_confirms?`, `timeout?`): `Promise`\<`TransactionReceipt` \| `null`\>
 
-Defined in: node\_modules/.pnpm/ethers@6.16.0\_bufferutil@4.1.0\_utf-8-validate@5.0.10/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:369
+Defined in: [node\_modules/.pnpm/ethers@6.17.0/node\_modules/ethers/lib.esm/providers/abstract-provider.d.ts:374](https://github.com/evmts/tevm-ethers/blob/main/../node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.esm/providers/abstract-provider.d.ts#L374)
 
 Waits until the transaction %%hash%% is mined and has %%confirms%%
  confirmations.
@@ -1943,34 +2044,53 @@ Waits until the transaction %%hash%% is mined and has %%confirms%%
 
 ### createMemoryProvider()
 
-> `readonly` `static` **createMemoryProvider**(`options`): `Promise`\<`TevmProvider`\>
+> `readonly` `static` **createMemoryProvider**(`options?`): `Promise`\<`TevmProvider`\>
 
-Defined in: [extensions/ethers/src/TevmProvider.js:124](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/TevmProvider.js#L124)
+Defined in: [src/TevmProvider.js:143](https://github.com/evmts/tevm-ethers/blob/main/TevmProvider.js#L143)
 
-Creates a new TevmProvider instance with a TevmMemoryClient.
+Creates a `TevmProvider` backed by a brand new in-memory Tevm node.
+
+The node is created with `createTevmNode(options)` and extended with `tevmActions()` and
+`tevmSend()`, so both the ethers provider API and the Tevm action API are available.
 
 #### Parameters
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `options` | `TevmNodeOptions`\<\{ `blockExplorers?`: \{\[`key`: `string`\]: `ChainBlockExplorer`; `default`: `ChainBlockExplorer`; \}; `blockTime?`: `number`; `contracts?`: \{\[`key`: `string`\]: `ChainContract` \| \{\[`sourceId`: `number`\]: `ChainContract` \| `undefined`; \} \| `undefined`; `ensRegistry?`: `ChainContract`; `ensUniversalResolver?`: `ChainContract`; `erc6492Verifier?`: `ChainContract`; `multicall3?`: `ChainContract`; \}; `copy`: () => `object`; `custom?`: `Record`\<`string`, `unknown`\>; `ensTlds?`: readonly `string`[]; `ethjsCommon`: `Common`; `experimental_preconfirmationTime?`: `number`; `extendSchema?`: `Record`\<`string`, `unknown`\>; `fees?`: `ChainFees`\<`ChainFormatters` \| `undefined`\>; `formatters?`: `ChainFormatters`; `id`: `number`; `name`: `string`; `nativeCurrency`: `ChainNativeCurrency`; `prepareTransactionRequest?`: `PrepareTransactionRequestFn` \| \[`PrepareTransactionRequestFn`, `object`\]; `rpcUrls`: \{\[`key`: `string`\]: `ChainRpcUrls`; `default`: `ChainRpcUrls`; \}; `serializers?`: `ChainSerializers`\<`ChainFormatters` \| `undefined`, `TransactionSerializable`\>; `sourceId?`: `number`; `testnet?`: `boolean`; `verifyHash?`: `ChainVerifyHashFn`; \}\> | Options to create a new TevmProvider. |
+| `options?` | `TevmNodeOptions`\<\{ `blockExplorers?`: \{\[`key`: `string`\]: `ChainBlockExplorer`; `default`: `ChainBlockExplorer`; \}; `blockTime?`: `number`; `contracts?`: \{\[`key`: `string`\]: `ChainContract` \| \{\[`sourceId`: `number`\]: `ChainContract` \| `undefined`; \} \| `undefined`; `ensRegistry?`: `ChainContract`; `ensUniversalResolver?`: `ChainContract`; `erc6492Verifier?`: `ChainContract`; `multicall3?`: `ChainContract`; \}; `copy`: () => `object`; `custom?`: `Record`\<`string`, `unknown`\>; `ensTlds?`: readonly `string`[]; `ethjsCommon`: `Common`; `experimental_preconfirmationTime?`: `number`; `extendSchema?`: `Record`\<`string`, `unknown`\>; `fees?`: `ChainFees`\<`ChainFormatters` \| `undefined`\>; `formatters?`: `ChainFormatters`; `id`: `number`; `name`: `string`; `nativeCurrency`: `ChainNativeCurrency`; `prepareTransactionRequest?`: `PrepareTransactionRequestFn` \| \[`fn`: `PrepareTransactionRequestFn`, `options`: `object`\]; `rpcUrls`: \{\[`key`: `string`\]: `ChainRpcUrls`; `default`: `ChainRpcUrls`; \}; `serializers?`: `ChainSerializers`\<`ChainFormatters` \| `undefined`, `TransactionSerializable`\>; `sourceId?`: `number`; `testnet?`: `boolean`; `verifyHash?`: `ChainVerifyHashFn`; \}\> | Tevm node options (fork config, mining config, chain common, logging). |
 
 #### Returns
 
 `Promise`\<`TevmProvider`\>
 
-A new TevmProvider instance.
+A provider whose backend is the newly created node.
 
-#### See
+#### Throws
 
-[Tevm Clients Docs](https://tevm.sh/learn/clients/)
+If `options.fork.transport` is provided but the fork RPC cannot be reached while the node initializes.
 
-#### Example
+#### Examples
 
 ```ts
 import { TevmProvider } from '@tevm/ethers'
 
-const provider = await TevmProvider.createMemoryProvider()
+const provider = await TevmProvider.createMemoryProvider({ miningConfig: { type: 'auto' } })
 
-const blockNumber = await provider.getBlockNumber()
+console.log(await provider.getBlockNumber()) // 0
 ```
+
+Forking mainnet:
+```ts
+import { TevmProvider } from '@tevm/ethers'
+import { http } from 'viem'
+
+const provider = await TevmProvider.createMemoryProvider({
+  fork: { transport: http('https://mainnet.optimism.io')({}) },
+})
+
+console.log(await provider.getBalance('0x0000000000000000000000000000000000000001'))
+```
+
+#### See
+
+[Tevm Node docs](https://node.tevm.sh)

@@ -23,9 +23,9 @@ import type { ContractMethodArgs } from './ContractMethodArgs.js'
 export type BaseContractMethod<
 	TArguments extends ReadonlyArray<any> = ReadonlyArray<any>,
 	TReturnType = any,
-	TExtendedReturnType extends TReturnType | ContractTransactionResponse = ContractTransactionResponse,
+	TExtendedReturnType extends TReturnType | ContractTransactionResponse = TReturnType | ContractTransactionResponse,
 > = {
-	(...args: ContractMethodArgs<TArguments>): Promise<TReturnType | TExtendedReturnType>
+	(...args: ContractMethodArgs<TArguments>): Promise<TExtendedReturnType>
 
 	name: string
 

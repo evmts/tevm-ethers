@@ -48,6 +48,7 @@
 		"src"
 	],
 	"scripts": {
+		"bench": "vitest bench --run",
 		"build": "pnpm run build:dist && pnpm run build:types",
 		"build:dist": "tsup",
 		"build:types": "tsup --dts-only",
@@ -60,6 +61,8 @@
 		"release": "pnpm run build && changeset publish",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
+		"test:e2e": "node --test test/e2e/package.test.mjs",
+		"test:fuzz": "vitest run .fuzz.spec.ts",
 		"test:ui": "vitest --ui",
 		"typecheck": "tsc --noEmit",
 		"version-packages": "changeset version"
@@ -82,16 +85,18 @@
 		"@tevm/tx": "^1.0.0-next.148",
 		"@vitest/coverage-v8": "^4.1.10",
 		"ethers": "^6.17.0",
+		"fast-check": "^4.11.0",
 		"tevm": "^1.0.0-next.149",
 		"tsup": "^8.5.1",
 		"typedoc": "^0.28.19",
+		"typedoc-plugin-markdown": "^4.14.1",
 		"typescript": "^6.0.3",
 		"viem": "2.46.0",
 		"vitest": "^4.1.10"
 	},
 	"peerDependencies": {
 		"ethers": ">=6.0.0 <7",
-		"tevm": ">=1.0.0",
+		"tevm": ">=1.0.0-next.149 <2",
 		"viem": ">=2.37.9 <=2.46.0"
 	},
 	"publishConfig": {

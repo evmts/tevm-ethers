@@ -13,19 +13,19 @@ description: Install @tevm/ethers and create your first in-memory ethers provide
 :::code-group
 
 ```bash [pnpm]
-pnpm add @tevm/ethers ethers tevm viem@2.46.0
+pnpm add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0
 ```
 
 ```bash [npm]
-npm install @tevm/ethers ethers tevm viem@2.46.0
+npm install @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0
 ```
 
 ```bash [yarn]
-yarn add @tevm/ethers ethers tevm viem@2.46.0
+yarn add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0
 ```
 
 ```bash [bun]
-bun add @tevm/ethers ethers tevm viem@2.46.0
+bun add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0
 ```
 
 :::
@@ -35,10 +35,10 @@ bun add @tevm/ethers ethers tevm viem@2.46.0
 | Peer dependency | Supported range          | Notes                                                                     |
 | --------------- | ------------------------ | ------------------------------------------------------------------------- |
 | `ethers`        | `>=6.0.0 <7`             | ethers v6 only. v5 is not supported.                                       |
-| `tevm`          | `>=1.0.0`                | The current release line is `1.0.0-rc.x`.                                  |
+| `tevm`          | `>=1.0.0-next.149 <2`    | Use the Tevm 1.x line.                                  |
 | `viem`          | `>=2.37.9 <=2.46.0`      | Pinned upper bound: current Tevm packages reference chain definitions removed after viem 2.46.0. |
 
-Node 24 or newer is recommended; the package is ESM-first and also ships a CommonJS build.
+Use Node 24; the package is ESM-first and also ships a CommonJS build.
 
 ## Your first provider
 

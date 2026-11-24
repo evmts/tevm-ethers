@@ -8,4 +8,4 @@
 
 > `const` **Interface**: [`TypesafeEthersInterfaceConstructor`](../type-aliases/TypesafeEthersInterfaceConstructor.md)
 
-Defined in: [extensions/ethers/src/contract/Contract.d.ts:16](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/contract/Contract.d.ts#L16)
+Defined in: [src/contract/Contract.d.ts:32](https://github.com/evmts/tevm-ethers/blob/main/contract/Contract.d.ts#L32)

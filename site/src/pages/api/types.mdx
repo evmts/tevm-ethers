@@ -74,7 +74,7 @@ const logs = await token.queryFilter('Transfer', 0, 'latest')
 | `address`, `string`, `bytesN`  | `string`                                               |
 | `T[]` / `T[N]`                 | `Array<mapped T>`                                      |
 | `tuple`                        | ethers `Result` intersected with the mapped components |
-| no outputs                     | `void`                                                 |
+| no outputs                     | An empty ethers `Result`                                                 |
 
 ## `BaseContractMethod<TArguments, TReturnType, TExtendedReturnType>`
 
@@ -84,9 +84,9 @@ The shape of a single typed contract method: callable, plus the ethers method he
 type BaseContractMethod<
 	TArguments extends ReadonlyArray<any> = ReadonlyArray<any>,
 	TReturnType = any,
-	TExtendedReturnType extends TReturnType | ContractTransactionResponse = ContractTransactionResponse,
+	TExtendedReturnType extends TReturnType | ContractTransactionResponse = TReturnType | ContractTransactionResponse,
 > = {
-	(...args: ContractMethodArgs<TArguments>): Promise<TReturnType | TExtendedReturnType>
+	(...args: ContractMethodArgs<TArguments>): Promise<TExtendedReturnType>
 	name: string
 	_contract: BaseContract
 	_key: string

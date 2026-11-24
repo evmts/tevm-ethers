@@ -3,10 +3,10 @@
 import { useState } from 'react'
 
 const MANAGERS = {
-	npm: 'npm install @tevm/ethers ethers tevm viem@2.46.0',
-	pnpm: 'pnpm add @tevm/ethers ethers tevm viem@2.46.0',
-	yarn: 'yarn add @tevm/ethers ethers tevm viem@2.46.0',
-	bun: 'bun add @tevm/ethers ethers tevm viem@2.46.0',
+	npm: 'npm install @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0',
+	pnpm: 'pnpm add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0',
+	yarn: 'yarn add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0',
+	bun: 'bun add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0',
 } as const
 
 type Manager = keyof typeof MANAGERS

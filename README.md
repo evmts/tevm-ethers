@@ -13,7 +13,7 @@ This repository was extracted from the Tevm monorepo so the integration can vers
 ## Installation
 
 ```sh
-pnpm add @tevm/ethers ethers tevm viem@2.46.0
+pnpm add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0
 ```
 
 `ethers`, `tevm`, and `viem` are peer dependencies, so applications choose the versions they use. The current published Tevm packages require viem 2.46.0 or earlier because they reference chain definitions removed in later viem releases.
@@ -27,13 +27,16 @@ const provider = await TevmProvider.createMemoryProvider({
 	miningConfig: { type: 'auto' },
 })
 
-const chainId = await provider.send('eth_chainId', [])
-const blockNumber = await provider.getBlockNumber()
-
-console.log({ chainId, blockNumber })
+try {
+	const chainId = await provider.request({ method: 'eth_chainId' })
+	const blockNumber = await provider.getBlockNumber()
+	console.log({ chainId, blockNumber })
+} finally {
+	provider.destroy()
+}
 ```
 
-`TevmProvider` supports ordinary ethers provider APIs as well as Tevm JSON-RPC methods and exposes Tevm actions on `provider.tevm`.
+`TevmProvider` supports ethers provider APIs and exposes Tevm actions on `provider.tevm`. Its `request({ method, params })` method also works with ethers `BrowserProvider` in Node.js tests.
 
 ## Typed contracts
 
@@ -50,8 +53,9 @@ const abi = [
 	},
 ] as const
 
-const token = new Contract('0x0000000000000000000000000000000000000000', abi, provider)
-const balance = await token.balanceOf('0x0000000000000000000000000000000000000001')
+const token = new Contract('0x0000000000000000000000000000000000001234', abi)
+const request = await token.balanceOf.populateTransaction('0x0000000000000000000000000000000000000001')
+console.log(request.data) // ABI-encoded balanceOf calldata
 ```
 
 ## Development
@@ -59,24 +63,32 @@ const balance = await token.balanceOf('0x000000000000000000000000000000000000000
 This repository uses Node 24 and pnpm 9.
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm lint
 pnpm typecheck
 pnpm build
-pnpm test
+pnpm test       # unit, integration, and ABI property tests
+pnpm test:fuzz  # run the ABI properties on their own
+pnpm test:e2e   # verify the ESM and CommonJS builds against an in-memory chain
+pnpm bench      # measure provider and ABI adapter operations
 ```
+
+The property tests use a fixed seed. On failure, fast-check prints the seed, shrink path, and minimized input. Benchmarks validate results while measuring throughput without machine-specific performance thresholds.
+
+GitHub requires maintainer approval for checks on pull requests created by `GITHUB_TOKEN`, including the Changesets release PR. Approve the latest run from the PR checks before merging. The CI workflow also supports manual dispatch on the release branch if a pending run expires.
 
 ### Documentation site
 
-The docs site lives in [`site/`](./site) and is built with [vocs](https://vocs.dev) 2.
+The docs site lives in `site/` and is built with [vocs](https://vocs.dev) 2.
 
 ```sh
 pnpm docs:dev     # local dev server
 pnpm docs:build   # static build to site/dist/public
 pnpm docs:preview # preview the built site
+pnpm generate:docs # refresh the Markdown API reference in docs/
 ```
 
-It is published to [ethers.tevm.sh](https://ethers.tevm.sh). General Tevm documentation remains at [tevm.sh](https://tevm.sh), and the Tevm node docs at [node.tevm.sh](https://node.tevm.sh).
+The Docs workflow builds and uploads the static site. Vercel's Git integration deploys `main` to [ethers.tevm.sh](https://ethers.tevm.sh). General Tevm documentation is at [tevm.sh](https://tevm.sh), and the Tevm node docs are at [node.tevm.sh](https://node.tevm.sh).
 
 ## License
 

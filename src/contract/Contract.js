@@ -29,7 +29,9 @@ import { Contract as EthersContract, Interface as EthersInterface } from 'ethers
  * ```
  * @see {@link https://docs.ethers.org/v6/api/abi/#Interface | ethers Interface docs}
  */
-export const Interface = /** @type {import('./Contract.js').TypesafeEthersInterfaceConstructor} */ (EthersInterface)
+export const Interface = /** @type {import('./Contract.js').TypesafeEthersInterfaceConstructor} */ (
+	/** @type {unknown} */ (EthersInterface)
+)
 
 /**
  * A drop-in replacement for the ethers [`Contract`](https://docs.ethers.org/v6/api/contract/#Contract)
@@ -41,7 +43,7 @@ export const Interface = /** @type {import('./Contract.js').TypesafeEthersInterf
  * @throws {Error} If the address or ABI is invalid (thrown by ethers).
  * @example
  * ```ts
- * import { Contract, TevmProvider } from '@tevm/ethers'
+ * import { Contract } from '@tevm/ethers'
  *
  * const abi = [
  *   {
@@ -53,13 +55,9 @@ export const Interface = /** @type {import('./Contract.js').TypesafeEthersInterf
  *   },
  * ] as const
  *
- * const provider = await TevmProvider.createMemoryProvider({})
- *
- * const token = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
- *
- * // `balance` is inferred as `bigint`; a typo in the method name is a type error
- * const balance = await token.balanceOf('0x0000000000000000000000000000000000000002')
- * console.log(balance) // 0n
+ * const token = new Contract('0x0000000000000000000000000000000000001234', abi)
+ * const request = await token.balanceOf.populateTransaction('0x0000000000000000000000000000000000000002')
+ * console.log(request.data) // ABI-encoded balanceOf calldata
  * ```
  * @see {@link https://docs.ethers.org/v6/api/contract/#Contract | ethers Contract docs}
  */

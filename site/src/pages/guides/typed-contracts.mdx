@@ -22,7 +22,7 @@ untyped ethers behavior.
 
 ```ts twoslash
 // @noErrors
-import { Contract, TevmProvider } from '@tevm/ethers'
+import { Contract } from '@tevm/ethers'
 
 const abi = [
 	{
@@ -53,12 +53,8 @@ const abi = [
 	},
 ] as const
 
-const provider = await TevmProvider.createMemoryProvider({})
-
-const token = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
-
-// `balance` is `bigint`; `token.balnceOf` is a compile error
-const balance = await token.balanceOf('0x0000000000000000000000000000000000000002')
+const token = new Contract('0x0000000000000000000000000000000000001234', abi)
+const request = await token.balanceOf.populateTransaction('0x0000000000000000000000000000000000000002')
 ```
 
 ## Read vs write methods
@@ -127,8 +123,7 @@ fall back to `EventLog | Log`.
 
 ## `Interface`
 
-`Interface` keeps the const ABI in its `fragments` property, which is useful when you encode or
-decode calldata by hand.
+Pass a const ABI to `Interface` to infer the methods on any `Contract` created with that interface. Use ethers interface methods to encode or decode calldata by hand.
 
 ```ts twoslash
 // @noErrors
@@ -144,7 +139,7 @@ const abi = [
 	},
 ] as const
 
-const iface = new Interface<typeof abi>(abi)
+const iface = new Interface(abi)
 
 const data = iface.encodeFunctionData('balanceOf', ['0x0000000000000000000000000000000000000001'])
 console.log(data.startsWith('0x70a08231')) // true

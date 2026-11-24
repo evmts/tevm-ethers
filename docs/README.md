@@ -2,118 +2,98 @@
 
 ***
 
-<p align="center">
-  <a href="https://tevm.dev/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/35039927/218812217-92f0f784-cb85-43b9-9ca6-e2b9effd9eb2.png">
-      <img alt="wagmi logo" src="https://user-images.githubusercontent.com/35039927/218812217-92f0f784-cb85-43b9-9ca6-e2b9effd9eb2.png" width="auto" height="300">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  Execute solidity scripts in browser
-</p>
-
-[![CI](https://github.com/evmts/tevm-monorepo/actions/workflows/e2e.yml/badge.svg)](https://github.com/evmts/tevm-monorepo/actions/workflows/e2e.yml)
-[![CI](https://github.com/evmts/tevm-monorepo/actions/workflows/unit.yml/badge.svg)](https://github.com/evmts/tevm-monorepo/actions/workflows/unit.yml)
-<a href="https://www.npmjs.com/package/@tevm/contract" target="\_parent">
-<img alt="" src="https://img.shields.io/npm/dm/@tevm/contract.svg" />
-</a>
-<a href="https://bundlephobia.com/package/@tevm/contract@latest" target="\_parent">
-<img alt="" src="https://badgen.net/bundlephobia/minzip/@tevm/contract" />
-</a>
-
 # @tevm/ethers
 
-A ethers.js utilities for Tevm
+[![CI](https://github.com/evmts/tevm-ethers/actions/workflows/ci.yml/badge.svg)](https://github.com/evmts/tevm-ethers/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@tevm/ethers.svg)](https://www.npmjs.com/package/@tevm/ethers)
 
-### Try cloning our [minimal bun example on github](https://github.com/evmts/bun-starterkit)
+Ethers.js v6 integration for [Tevm](https://tevm.sh). This package provides:
 
-Don't worry if you aren't familiar with bun. It works with NODE/npm pnpm and yarn too
+- `TevmProvider`, an ethers `JsonRpcApiProvider` backed by an in-memory Tevm node or an existing Tevm client.
+- Typed `Contract` and `Interface` exports that infer methods and events from a const ABI without code generation.
 
-## High level overview
-
-Previously the best way to get typesafe [contracts](https://docs.ethers.org/v6/api/contract/) with ethers was [typechain](https://github.com/dethcrypto/TypeChain) typechain improved the dev experience of using contracts via creating typesafe contracts via codegen. Tevm builds on this idea by providing the same benifit purely at runtime without any build or codegen steps.
-
-- `@tevm/ethers` exports a single function `createEthersContract`
-- `@tevm/ethers` only supports ethers v6 at this time
+This repository was extracted from the Tevm monorepo so the integration can version and release on the cadence of ethers. Tevm's core packages remain independently published dependencies.
 
 ## Installation
 
-To use `@tevm/ethers` simply set up tevm as normal and add the special `@tevm/ethers` package
-
-```
-npm install @tevm/ethers ethers@6
+```sh
+pnpm add @tevm/ethers ethers tevm@1.0.0-next.149 viem@2.46.0
 ```
 
-## API Reference
+`ethers`, `tevm`, and `viem` are peer dependencies, so applications choose the versions they use. The current published Tevm packages require viem 2.46.0 or earlier because they reference chain definitions removed in later viem releases.
 
-### createEthersContract function
+## In-memory provider
 
-**Type**
-```typescript
-function createEthersContract<TAddresses extends Record<number, Address>, TAbi extends Abi>(
-    contract: Pick<TevmContract<any, TAddresses, TAbi, any>, 'abi' | 'addresses'>,
-    options: CreateEthersContractOptions<keyof TAddresses & number>
-): TypesafeEthersContract<TAbi>
+```ts
+import { TevmProvider } from '@tevm/ethers'
+
+const provider = await TevmProvider.createMemoryProvider({
+	miningConfig: { type: 'auto' },
+})
+
+try {
+	const chainId = await provider.request({ method: 'eth_chainId' })
+	const blockNumber = await provider.getBlockNumber()
+	console.log({ chainId, blockNumber })
+} finally {
+	provider.destroy()
+}
 ```
 
-**Description**
-Creates a typesafe [ethers contract](https://docs.ethers.org/v6/api/contract/) from an tevm contract. This function provides typesafe contracts for Ethereum development with Ethers.js and Tevm.
+`TevmProvider` supports ethers provider APIs and exposes Tevm actions on `provider.tevm`. Its `request({ method, params })` method also works with ethers `BrowserProvider` in Node.js tests.
 
-**Params**
-- `contract`: This parameter should be an Tevm contract. It should include the 'abi' and 'addresses' properties.
-- `options`: This parameter should be an object of type `CreateEthersContractOptions`. It should include either a `chainId` or an `address`, along with the `runner`, which should be an Ethers.js provider or signer.
+## Typed contracts
 
-**Returns**
-The function returns a `TypesafeEthersContract`. This contract is a typed version of the ethers.js contract instance, which provides type safety and autocompletion for contract methods.
+```ts
+import { Contract } from '@tevm/ethers'
 
-**Example**
-```typescript
-// import a contract with tevm
-import {ERC20} from '@openzeppelin/contracts/token/ERC20/ERC20.sol'
-import {providers} from 'ethers'
-// create a provider or signer for the ethers contract
-const provider = new providers.JsonRpcProvider('http://localhost:8545')
-// create a typesafe contract
-const contract = createEthersContract(myContract, {chainId: 1, runner: provider})
-// enjoy typesafety and autocompletion in your ethers contract
-const balance = c.balanceOf('0x32307adfFE088e383AFAa721b06436aDaBA47DBE'),
+const abi = [
+	{
+		type: 'function',
+		name: 'balanceOf',
+		stateMutability: 'view',
+		inputs: [{ name: 'account', type: 'address' }],
+		outputs: [{ name: 'balance', type: 'uint256' }],
+	},
+] as const
+
+const token = new Contract('0x0000000000000000000000000000000000001234', abi)
+const request = await token.balanceOf.populateTransaction('0x0000000000000000000000000000000000000001')
+console.log(request.data) // ABI-encoded balanceOf calldata
 ```
 
-## CreateEthersContractOptions Type
+## Development
 
-**Type**
-```typescript
-type CreateEthersContractOptions<TChainIds extends number> =
-  | {
-      chainId: TChainIds;
-      runner: ContractRunner;
-  }
-  | {
-      address: Address;
-      runner: ContractRunner;
-  }
+This repository uses Node 24 and pnpm 9.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm test       # unit, integration, and ABI property tests
+pnpm test:fuzz  # run the ABI properties on their own
+pnpm test:e2e   # verify the ESM and CommonJS builds against an in-memory chain
+pnpm bench      # measure provider and ABI adapter operations
 ```
 
-**Description**
-An options object type used by `createEthersContract` function. It can either provide a `chainId` if Tevm config has addresses for contracts configured for that chain or provide the `address` prop to specify the address directly. Both options require a `runner` property which is an Ethers.js provider or signer.
+The property tests use a fixed seed. On failure, fast-check prints the seed, shrink path, and minimized input. Benchmarks validate results while measuring throughput without machine-specific performance thresholds.
 
-**Params**
-- `chainId` or `address`: You should provide either the chainId or the address of the contract. If you use the `chainId` option, Tevm should have the addresses for contracts configured for that chain. If you use the `address` option, specify the address directly.
-- `runner`: This is an Ethers.js provider or signer.
+GitHub requires maintainer approval for checks on pull requests created by `GITHUB_TOKEN`, including the Changesets release PR. Approve the latest run from the PR checks before merging. The CI workflow also supports manual dispatch on the release branch if a pending run expires.
 
-**Example**
-```typescript
-const optionsWithChainId = { chainId: 1, runner: provider }; // Using chainId
-const optionsWithAddress = { address: "0x1234...abcd", runner: provider }; // Using address
+### Documentation site
+
+The docs site lives in `site/` and is built with [vocs](https://vocs.dev) 2.
+
+```sh
+pnpm docs:dev     # local dev server
+pnpm docs:build   # static build to site/dist/public
+pnpm docs:preview # preview the built site
+pnpm generate:docs # refresh the Markdown API reference in docs/
 ```
 
-## See also
+The Docs workflow builds and uploads the static site. Vercel's Git integration deploys `main` to [ethers.tevm.sh](https://ethers.tevm.sh). General Tevm documentation is at [tevm.sh](https://tevm.sh), and the Tevm node docs are at [node.tevm.sh](https://node.tevm.sh).
 
-[ethers v6 docs](https://docs.ethers.org/v6)
+## License
 
-## License 📄
-
-<a href="_media/LICENSE"><img src="https://user-images.githubusercontent.com/35039927/231030761-66f5ce58-a4e9-4695-b1fe-255b1bceac92.png" width="200" /></a>
+[MIT](_media/LICENSE)

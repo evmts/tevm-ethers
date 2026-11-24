@@ -8,4 +8,4 @@
 
 > `const` **Contract**: [`TypesafeEthersContractConstructor`](../type-aliases/TypesafeEthersContractConstructor.md)
 
-Defined in: [extensions/ethers/src/contract/Contract.d.ts:33](https://github.com/evmts/tevm-monorepo/blob/main/extensions/ethers/src/contract/Contract.d.ts#L33)
+Defined in: [src/contract/Contract.d.ts:62](https://github.com/evmts/tevm-ethers/blob/main/contract/Contract.d.ts#L62)

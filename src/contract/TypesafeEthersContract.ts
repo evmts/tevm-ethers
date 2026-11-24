@@ -48,11 +48,9 @@ type EthersAbiParametersToPrimitiveTypes<TParameters extends readonly EthersAbiP
 type EthersFunctionOutput<TAbi extends Abi, TFunctionName extends ExtractAbiFunctionNames<TAbi>> =
 	EthersAbiParametersToPrimitiveTypes<ExtractAbiFunction<TAbi, TFunctionName>['outputs']> extends infer TOutputs extends
 		readonly unknown[]
-		? TOutputs['length'] extends 0
-			? void
-			: TOutputs['length'] extends 1
-				? TOutputs[0]
-				: Result & TOutputs
+		? TOutputs['length'] extends 1
+			? TOutputs[0]
+			: Result & TOutputs
 		: never
 
 type EthersEventLog<TAbi extends Abi, TContractEventName extends ExtractAbiEventNames<TAbi>> = EventLog & {

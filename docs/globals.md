@@ -14,9 +14,11 @@
 - [ContractMethodArgs](type-aliases/ContractMethodArgs.md)
 - [TypesafeEthersContract](type-aliases/TypesafeEthersContract.md)
 - [TypesafeEthersContractConstructor](type-aliases/TypesafeEthersContractConstructor.md)
+- [TypesafeEthersInterface](type-aliases/TypesafeEthersInterface.md)
 - [TypesafeEthersInterfaceConstructor](type-aliases/TypesafeEthersInterfaceConstructor.md)
 
 ## Variables
 
 - [Contract](variables/Contract.md)
 - [Interface](variables/Interface.md)
+- [interfaceAbi](variables/interfaceAbi.md)

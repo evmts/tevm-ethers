@@ -3,7 +3,9 @@
 	"out": "./docs",
 	"entryPoints": ["./src/index.ts"],
 	"plugin": ["typedoc-plugin-markdown"],
-	"gitRevision": "main",
+	"disableGit": true,
+	"intentionallyNotExported": ["EthersFunctionOutput", "EthersEventLog"],
+	"sourceLinkTemplate": "https://github.com/evmts/tevm-ethers/blob/main/{path}#L{line}",
 	"parametersFormat": "table",
 	"propertiesFormat": "table"
 }

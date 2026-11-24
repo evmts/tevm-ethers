@@ -9,20 +9,24 @@ import type {
 } from 'ethers'
 import type { TypesafeEthersContract } from './TypesafeEthersContract.js'
 
+declare const interfaceAbi: unique symbol
+type TypesafeEthersInterface<TAbi extends Abi> = EthersInterface & { readonly [interfaceAbi]: TAbi }
+
 /**
- * Constructor type for the typesafe {@link Interface}. Narrows `fragments` to the const ABI it was
- * constructed with, so ABI-derived helpers keep full type information.
+ * Constructor type for the typesafe {@link Interface}. Carries the const ABI type through to a
+ * {@link Contract} constructed with the interface.
  * @example
  * ```ts
  * import { Interface } from '@tevm/ethers'
  *
  * const abi = [{ type: 'function', name: 'totalSupply', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const
- * const iface = new Interface<typeof abi>(abi)
- * console.log(iface.fragments[0].name) // 'totalSupply'
+ * const iface = new Interface(abi)
+ * console.log(iface.getFunction('totalSupply')?.name) // 'totalSupply'
  * ```
  */
 type TypesafeEthersInterfaceConstructor = {
-	new <TAbi extends Abi>(abi: InterfaceAbi): Omit<EthersInterface, 'fragments'> & { fragments: TAbi }
+	new <TAbi extends Abi>(abi: TAbi): TypesafeEthersInterface<TAbi>
+	new (abi: InterfaceAbi): EthersInterface
 }
 
 export const Interface: TypesafeEthersInterfaceConstructor
@@ -33,18 +37,17 @@ export const Interface: TypesafeEthersInterfaceConstructor
  * untyped ethers fallback for runtime ABIs.
  * @example
  * ```ts
- * import { Contract, TevmProvider } from '@tevm/ethers'
+ * import { Contract } from '@tevm/ethers'
  *
  * const abi = [{ type: 'function', name: 'totalSupply', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const
- * const provider = await TevmProvider.createMemoryProvider({})
- * const contract = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
- * console.log(await contract.totalSupply()) // 0n
+ * const contract = new Contract('0x0000000000000000000000000000000000001234', abi)
+ * console.log((await contract.totalSupply.populateTransaction()).data) // '0x18160ddd'
  * ```
  */
 type TypesafeEthersContractConstructor = {
 	new <TAbi extends Abi>(
 		target: string | Addressable,
-		abi: { fragments: TAbi } | TAbi,
+		abi: TypesafeEthersInterface<TAbi> | TAbi,
 		runner?: null | ContractRunner,
 		_deployTx?: null | TransactionResponse,
 	): TypesafeEthersContract<TAbi> & EthersContract

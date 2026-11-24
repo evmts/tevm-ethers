@@ -23,7 +23,7 @@ const Contract: TypesafeEthersContractConstructor
 ```ts
 new Contract<TAbi extends Abi>(
 	target: string | Addressable,
-	abi: { fragments: TAbi } | TAbi,
+	abi: TypesafeEthersInterface<TAbi> | TAbi,
 	runner?: null | ContractRunner,
 	_deployTx?: null | TransactionResponse,
 ): TypesafeEthersContract<TAbi> & EthersContract
@@ -44,7 +44,7 @@ fallback for runtime ABIs.
 
 ```ts twoslash
 // @noErrors
-import { Contract, TevmProvider } from '@tevm/ethers'
+import { Contract } from '@tevm/ethers'
 
 const abi = [
 	{
@@ -56,13 +56,9 @@ const abi = [
 	},
 ] as const
 
-const provider = await TevmProvider.createMemoryProvider({})
-
-const token = new Contract('0x0000000000000000000000000000000000000001', abi, provider)
-
-// `balance` is inferred as bigint; a typo in the method name is a compile error
-const balance = await token.balanceOf('0x0000000000000000000000000000000000000002')
-console.log(balance) // 0n
+const token = new Contract('0x0000000000000000000000000000000000001234', abi)
+const request = await token.balanceOf.populateTransaction('0x0000000000000000000000000000000000000002')
+console.log(request.data) // ABI-encoded balanceOf calldata
 ```
 
 Pass a signer as the `runner` to send transactions:
@@ -102,10 +98,11 @@ const Interface: TypesafeEthersInterfaceConstructor
 **Constructor**
 
 ```ts
-new Interface<TAbi extends Abi>(abi: InterfaceAbi): Omit<EthersInterface, 'fragments'> & { fragments: TAbi }
+new Interface<TAbi extends Abi>(abi: TAbi): TypesafeEthersInterface<TAbi>
+new Interface(abi: InterfaceAbi): EthersInterface
 ```
 
-Identical to `ethers.Interface` except that `fragments` keeps the const ABI's type.
+An interface created with a const ABI carries its type into `new Contract(address, iface, runner)`. The `fragments` property contains ethers `Fragment` objects.
 
 **Throws** `Error` — if the ABI is malformed (thrown by ethers).
 
@@ -123,7 +120,7 @@ const abi = [
 	},
 ] as const
 
-const iface = new Interface<typeof abi>(abi)
+const iface = new Interface(abi)
 
 const data = iface.encodeFunctionData('balanceOf', ['0x0000000000000000000000000000000000000001'])
 console.log(data.startsWith('0x70a08231')) // true

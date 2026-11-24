@@ -1,8 +1,8 @@
 import { ERC20 } from '@tevm/contract'
-import { type ethers } from 'ethers'
+import { type ContractTransactionResponse, type ethers, FunctionFragment, type Result } from 'ethers'
 import { assertType, describe, expect, expectTypeOf, test } from 'vitest'
 import { TevmProvider } from '../TevmProvider.js'
-import { Contract } from './Contract.js'
+import { Contract, Interface } from './Contract.js'
 
 const abi = [
 	{ inputs: [], stateMutability: 'nonpayable', type: 'constructor' },
@@ -255,7 +255,7 @@ const createErc20Contract = async () => {
 	if (!deployResult.createdAddress) {
 		throw new Error('contract never deployed')
 	}
-	return new Contract(deployResult.createdAddress, abi, provider)
+	return { contract: new Contract(deployResult.createdAddress, abi, provider), provider }
 }
 
 describe('ethers.Contract', () => {
@@ -268,6 +268,18 @@ describe('ethers.Contract', () => {
 		expectTypeOf<Awaited<ReturnType<typeof c.symbol>>>().toBeString()
 		expectTypeOf<Awaited<ReturnType<typeof c.decimals>>>().toEqualTypeOf<bigint>()
 		expectTypeOf<Awaited<ReturnType<typeof c.totalSupply>>>().toEqualTypeOf<bigint>()
+		expectTypeOf<Awaited<ReturnType<typeof c.transfer>>>().toEqualTypeOf<ContractTransactionResponse>()
+		expectTypeOf<Awaited<ReturnType<typeof c.transfer.staticCall>>>().toEqualTypeOf<boolean>()
+		expectTypeOf<Awaited<ReturnType<typeof c.mint.staticCall>>>().toEqualTypeOf<Result & readonly []>()
+	})
+
+	test('infers a contract ABI from an interface without replacing ethers fragments', () => {
+		const iface = new Interface(abi)
+		assertType<ethers.Interface>(iface)
+		const contract = new Contract(addresses[10], iface)
+		expectTypeOf<Awaited<ReturnType<typeof contract.decimals>>>().toEqualTypeOf<bigint>()
+		expect(iface.getFunction('decimals')).toBeInstanceOf(FunctionFragment)
+		expect(iface.getFunction('decimals')?.format()).toBe('decimals()')
 	})
 
 	test('Should be typesafe with arguments', async () => {
@@ -297,22 +309,16 @@ describe('ethers.Contract', () => {
 	})
 
 	test('should work', async () => {
-		const c = await createErc20Contract()
-		expect(c).toBeInstanceOf(Contract)
-		expect(await c.name()).toMatchInlineSnapshot('"Dai Stablecoin"')
-		expect(await c.symbol()).toMatchInlineSnapshot('"DAI"')
-		expect(await c.decimals()).toMatchInlineSnapshot('18n')
-		expect(await c.totalSupply()).toMatchInlineSnapshot('0n')
-		expect(await c.balanceOf('0x32307adfFE088e383AFAa721b06436aDaBA47DBE')).toMatchInlineSnapshot('0n')
-	})
-
-	test('should work with custom address', async () => {
-		const c = await createErc20Contract()
-		expect(c).toBeInstanceOf(Contract)
-		expect(await c.name()).toMatchInlineSnapshot('"Dai Stablecoin"')
-		expect(await c.symbol()).toMatchInlineSnapshot('"DAI"')
-		expect(await c.decimals()).toMatchInlineSnapshot('18n')
-		expect(await c.totalSupply()).toMatchInlineSnapshot('0n')
-		expect(await c.balanceOf('0x32307adfFE088e383AFAa721b06436aDaBA47DBE')).toMatchInlineSnapshot('0n')
+		const { contract, provider } = await createErc20Contract()
+		try {
+			expect(contract).toBeInstanceOf(Contract)
+			expect(await contract.name()).toBe('Dai Stablecoin')
+			expect(await contract.symbol()).toBe('DAI')
+			expect(await contract.decimals()).toBe(18n)
+			expect(await contract.totalSupply()).toBe(0n)
+			expect(await contract.balanceOf('0x32307adfFE088e383AFAa721b06436aDaBA47DBE')).toBe(0n)
+		} finally {
+			provider.destroy()
+		}
 	})
 })

@@ -141,7 +141,9 @@ export class TevmProvider extends JsonRpcApiProvider {
 	 * @see {@link https://node.tevm.sh | Tevm Node docs}
 	 */
 	static createMemoryProvider = async (options) => {
-		return new TevmProvider(createTevmNode(options).extend(tevmActions()).extend(tevmSend()))
+		const node = createTevmNode(options)
+		await node.ready()
+		return new TevmProvider(node.extend(tevmActions()).extend(tevmSend()))
 	}
 
 	/**
@@ -193,8 +195,20 @@ export class TevmProvider extends JsonRpcApiProvider {
 			batchStallTime: 0,
 			cacheTimeout: -1,
 		})
-		this.tevm = 'tevm' in client ? client.tevm : client
+		const node = client && ('tevm' in client ? client.tevm : client)
+		if (typeof node?.send !== 'function' || typeof node.sendBulk !== 'function') {
+			throw new TypeError('Expected a Tevm node extended with tevmActions() and tevmSend()')
+		}
+		this.tevm = node
 		this._start()
+	}
+
+	/**
+	 * Sends a request using the EIP-1193 calling convention.
+	 * @type {import('ethers').Eip1193Provider['request']}
+	 */
+	request({ method, params = [] }) {
+		return this.send(method, params)
 	}
 
 	/**

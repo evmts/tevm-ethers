@@ -1,6 +1,7 @@
 import { createContract, ERC20 } from '@tevm/contract'
 import { encodeDeployData, toHex } from '@tevm/utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { BrowserProvider, type Eip1193Provider } from 'ethers'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import { Interface } from './contract/index.js'
 import { TevmProvider } from './TevmProvider.js'
 
@@ -10,16 +11,39 @@ describe(TevmProvider.name, () => {
 	beforeEach(async () => {
 		provider = await TevmProvider.createMemoryProvider({})
 	})
+	afterEach(() => provider?.destroy())
 
 	it('should be able to use like a normal JsonRpcProvider', async () => {
 		expect(await provider.send('eth_chainId', [])).toBe('0x384')
 	})
 
-	// Standalone uses the latest published @tevm/decorators (1.0.0-next.148), whose
-	// request type is narrower than ethers 6.17's open-ended EIP-1193 signature.
-	// Re-enable when a compatible decorators release is published.
-	it.skip('exposes a typed request function assignable to an open EIP-1193 provider', () => {
-		expect(true).toBe(true)
+	it('accepts EIP-1193 requests and works with BrowserProvider', async () => {
+		expectTypeOf(provider).toExtend<Eip1193Provider>()
+		expect(await provider.request({ method: 'eth_chainId' })).toBe('0x384')
+		const browser = new BrowserProvider(provider)
+		try {
+			expect((await browser.getNetwork()).chainId).toBe(900n)
+		} finally {
+			browser.destroy()
+		}
+	})
+
+	it('preserves results, error codes and request IDs in a JSON-RPC batch', async () => {
+		const responses = await provider._send([
+			{ jsonrpc: '2.0', id: 31, method: 'eth_chainId', params: [] },
+			{ jsonrpc: '2.0', id: 42, method: 'missing', params: [] },
+		])
+		expect(responses).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ jsonrpc: '2.0', id: 31, result: '0x384' }),
+				expect.objectContaining({ id: 42, error: expect.objectContaining({ code: -32601 }) }),
+			]),
+		)
+		await expect(provider.request({ method: 'missing' })).rejects.toMatchObject({ error: { code: -32601 } })
+	})
+
+	it('rejects clients without the Tevm JSON-RPC transport', () => {
+		expect(() => new TevmProvider({ tevm: {} } as never)).toThrow(TypeError)
 	})
 
 	describe('should be able to do tevm specific requests', () => {
@@ -52,7 +76,7 @@ describe(TevmProvider.name, () => {
 			})
 		}, 15_000)
 
-		it('provider.tevm.script', async () => {
+		it('runs a contract against supplied bytecode', async () => {
 			const result = await provider.tevm.contract(
 				ERC20.withCode(encodeDeployData(ERC20.deploy('name', 'SYMBOL'))).read.balanceOf(`0x${'69'.repeat(20)}`),
 			)

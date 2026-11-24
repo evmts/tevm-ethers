@@ -24,6 +24,7 @@ Every method of `JsonRpcApiProvider` and `AbstractProvider` is inherited unchang
 
 Creates a provider backed by a brand new in-memory Tevm node. The node is created with
 `createTevmNode(options)` and extended with `tevmActions()` and `tevmSend()`.
+The promise resolves after the node initializes. Call `provider.destroy()` when finished to stop ethers polling and release event listeners.
 
 **Parameters**
 
@@ -110,6 +111,25 @@ console.log(account.balance) // 420n
 
 See [Tevm actions & JSON-RPC](/guides/tevm-actions) for the full list, and the
 [Tevm Node docs](https://node.tevm.sh) for each action's parameters.
+
+## `provider.request({ method, params? })`
+
+Sends a JSON-RPC request using the EIP-1193 calling convention. It returns the result or rejects with the ethers error from `send`.
+
+```ts
+import { TevmProvider } from '@tevm/ethers'
+import { BrowserProvider } from 'ethers'
+
+const provider = await TevmProvider.createMemoryProvider()
+const browser = new BrowserProvider(provider)
+try {
+	console.log(await provider.request({ method: 'eth_chainId' })) // '0x384'
+	console.log((await browser.getNetwork()).chainId) // 900n
+} finally {
+	browser.destroy()
+	provider.destroy()
+}
+```
 
 ## `provider._send(payload)`
 

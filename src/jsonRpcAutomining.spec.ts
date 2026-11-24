@@ -11,7 +11,7 @@ import {
 	PREFUNDED_PRIVATE_KEYS,
 	parseEther,
 } from '@tevm/utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { TevmProvider } from './TevmProvider.js'
 
 describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
@@ -20,6 +20,7 @@ describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
 			const provider = await TevmProvider.createMemoryProvider({
 				miningConfig: { type: 'auto' },
 			})
+			onTestFinished(() => provider.destroy())
 
 			// Get initial block number
 			const initialBlockNumber = await provider.getBlockNumber()
@@ -57,6 +58,7 @@ describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
 		it('should not automine when automining is disabled', async () => {
 			const node = createTevmNode({ miningConfig: { type: 'manual' } })
 			const provider = new TevmProvider(node.extend(tevmActions()).extend(tevmSend()))
+			onTestFinished(() => provider.destroy())
 
 			// Get initial block number
 			const initialBlockNumber = await provider.getBlockNumber()
@@ -67,7 +69,7 @@ describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
 					nonce: '0x00',
 					maxFeePerGas: '0x09184e72a000',
 					maxPriorityFeePerGas: '0x09184e72a000',
-					gasLimit: '0x2710',
+					gasLimit: '0x5208',
 					to: createAddressFromString(`0x${'42'.repeat(20)}`),
 					value: parseEther('0.1'),
 					data: '0x',
@@ -96,13 +98,19 @@ describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
 			expect(pooledTxs).toHaveLength(1)
 			if (!pooledTxs[0]) throw new Error('Transaction not found in pool')
 			expect(bytesToHex(pooledTxs[0].tx.hash())).toBe(txHash)
+
+			await provider.tevm.mine()
+			expect(await provider.getBlockNumber()).toBe(initialBlockNumber + 1)
+			expect(await provider.getTransactionReceipt(txHash)).toMatchObject({ hash: txHash, status: 1 })
+			expect(await provider.getBalance(`0x${'42'.repeat(20)}`)).toBe(parseEther('0.1'))
 		})
 	})
 
 	describe('estimateGas should NOT trigger automining', () => {
 		it('should not mine blocks during gas estimation via ethers provider', async () => {
-			const node = createTevmNode({ miningConfig: { type: 'auto' }, loggingLevel: 'debug' })
+			const node = createTevmNode({ miningConfig: { type: 'auto' } })
 			const provider = new TevmProvider(node.extend(tevmActions()).extend(tevmSend()))
+			onTestFinished(() => provider.destroy())
 
 			// Get initial block number
 			const initialBlockNumber = await provider.getBlockNumber()
@@ -131,6 +139,7 @@ describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
 		it('should not create transactions during multiple gas estimations', async () => {
 			const node = createTevmNode({ miningConfig: { type: 'auto' } })
 			const provider = new TevmProvider(node.extend(tevmActions()).extend(tevmSend()))
+			onTestFinished(() => provider.destroy())
 
 			// Estimate gas multiple times
 			for (let i = 0; i < 3; i++) {
@@ -156,6 +165,7 @@ describe('Ethers Extension JSON-RPC Automining Integration Tests', () => {
 			const provider = await TevmProvider.createMemoryProvider({
 				miningConfig: { type: 'auto' },
 			})
+			onTestFinished(() => provider.destroy())
 
 			// Send transaction with explicit nonce
 			const nextNonce = BigInt(await provider.getTransactionCount(PREFUNDED_ACCOUNTS[0].address))
